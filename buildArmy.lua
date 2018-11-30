@@ -13,6 +13,7 @@ function buildArmy.draw()
     --draw the armyList at the moment
     for k, v in pairs(armyList) do
         love.graphics.print(v, 0, 400)
+        print('test')
     end
 
     suit.draw()
