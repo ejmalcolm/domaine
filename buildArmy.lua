@@ -3,11 +3,7 @@ buildArmy = {}
 local suit = require("suit")
 
 local armyList = {}
-local nameTable = {'Blood Mage', 'Zangief', 'Rand', 'Lancer', 'Knight',
-                    'Reaper', 'Brawler', 'Chuck', 'Big Boy', 'Hunter',
-                    'Archer', 'Flagbearer', 'Tunneler', 'Kidnapper', 'Sapper',
-                    'Yorick', 'Clone', 'Witch Doctor', 'Signaller', 'Jester',
-                    'The Stupid', 'Warden', 'Heathen', 'Necromancer', 'Catapult'}
+local unitList = require('unitList')
 
 function buildArmy.update(dt)
     --make all the buttons
