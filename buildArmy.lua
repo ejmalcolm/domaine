@@ -9,16 +9,6 @@ local nameTable = {'Blood Mage', 'Zangief', 'Rand', 'Lancer', 'Knight',
                     'Yorick', 'Clone', 'Witch Doctor', 'Signaller', 'Jester',
                     'The Stupid', 'Warden', 'Heathen', 'Necromancer', 'Catapult'}
 
-function buildArmy.draw()
-    --draw the armyList at the moment
-    for k, v in pairs(armyList) do
-        love.graphics.print(v, 0, 400)
-        print('test')
-    end
-
-    suit.draw()
-end
-
 function buildArmy.update(dt)
     --make all the buttons
     local iteration = 1
@@ -28,12 +18,29 @@ function buildArmy.update(dt)
             iteration = iteration + 1
         end
     end
-    --add units to armyList when button is hit
+
+    --add units to armyList when their button is hit
     for i=1,25 do
         if suit.isHit(i) then
             table.insert(armyList, nameTable[i])
         end
     end
+
+end
+
+function buildArmy.draw()
+
+    --make the top label
+    love.graphics.print({{255, 0, 0}, 'Your Army'}, 345, 280)
+
+    --create the armyList buttons
+    --they're buttons because they need to be able to be removed
+    suit.layout:reset(326, 300)
+    for k, v in pairs(armyList) do
+        suit.Button(v, suit.layout:row(100, 20))
+    end
+
+    suit.draw()
 end
 
 return buildArmy
