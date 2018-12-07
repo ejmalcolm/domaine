@@ -4,6 +4,8 @@ local suit = require("suit")
 
 local armyList = {}
 local unitList = require('unitList')
+--init currentArmyCost so it can be used in the armyList
+local currentArmyCost = 0
 
 function buildArmy.update(dt)
     --make all the buttons
@@ -19,8 +21,16 @@ function buildArmy.update(dt)
     --add units to armyList when their button is hit
     for k,v in pairs(unitList) do
         if suit.isHit(k) then
-            table.insert(armyList, k)
+            if currentArmyCost + v[1] <= 7 then
+                table.insert(armyList, k)
+            end
         end
+    end
+
+    --calculate currentArmyCost from armyList
+    currentArmyCost = 0
+    for k,v in pairs(armyList) do
+        currentArmyCost = currentArmyCost + unitList[v][1]
     end
 
 end
