@@ -27,6 +27,20 @@ function buildArmy.update(dt)
         end
     end
 
+    --create the armyList buttons
+    suit.layout:reset(326, 300)
+    local armyID = 1
+    for k, v in pairs(armyList) do
+        suit.Button(v, {id = v..tostring(k)}, suit.layout:row(100, 20))
+    end
+
+    --remove the unit from the armyList when clicked
+    for k, v in pairs(armyList) do
+        if suit.isHit(v..tostring(k)) then
+            table.remove(armyList, k)
+        end
+    end
+
     --calculate currentArmyCost from armyList
     currentArmyCost = 0
     for k,v in pairs(armyList) do
@@ -43,15 +57,8 @@ function buildArmy.draw()
     --make the top label
     love.graphics.print({{255, 0, 0}, 'Your Army'}, 345, 280)
 
-    --create the armyList buttons
-    --they're buttons because they need to be able to be removed
-    suit.layout:reset(326, 300)
-    local armyID = 1
-    for k, v in pairs(armyList) do
-        suit.Button(v, {id = armyID}, suit.layout:row(100, 20))
-        armyID = armyID + 1
-    end
     suit.draw()
+
 end
 
 return buildArmy
