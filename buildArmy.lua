@@ -8,7 +8,7 @@ local unitList = require('unitList')
 local currentArmyCost = 0
 
 function buildArmy.update(dt)
-    --make all the buttons
+    --make all the unitselect buttons
     local iteration = 0
     for k,v in pairs(unitList) do
         --complicated math to get the coords for each button
@@ -32,6 +32,9 @@ function buildArmy.update(dt)
     for k,v in pairs(armyList) do
         currentArmyCost = currentArmyCost + unitList[v][1]
     end
+
+    --make a button to launch into the matchmaking screen
+    suit.Button('Army Complete', 326, 450, 100, 20)
 
 end
 
