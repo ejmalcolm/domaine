@@ -29,7 +29,6 @@ function buildArmy.update(dt)
 
     --create the armyList buttons
     suit.layout:reset(326, 300)
-    local armyID = 1
     for k, v in pairs(armyList) do
         suit.Button(v, {id = v..tostring(k)}, suit.layout:row(100, 20))
     end
@@ -49,7 +48,10 @@ function buildArmy.update(dt)
 
     --make a button to launch into the matchmaking screen
     suit.Button('Army Complete', 326, 450, 100, 20)
-
+    if suit.isHit('Army Complete') then
+        changeScreen(board)
+    end
+    
 end
 
 function buildArmy.draw()

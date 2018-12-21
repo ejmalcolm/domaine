@@ -18,6 +18,9 @@ function board.load()
 	board.greenLane.b3 = {640, 285, 100, 100}
 end
 
+function board.update(dt)
+end
+
 function board.draw()
 	for k,v in pairs(board.redLane) do
 		love.graphics.setColor(1,0,0)
