@@ -50,8 +50,9 @@ function buildArmy.update(dt)
     suit.Button('Army Complete', 326, 450, 100, 20)
     if suit.isHit('Army Complete') then
         changeScreen(board)
+        board.setArmy(armyList)
     end
-    
+
 end
 
 function buildArmy.draw()
