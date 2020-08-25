@@ -26,10 +26,10 @@ function unitPlacement.load()
     unitPlacement.pRects.y.rect = {325, 180, 100, 100}
     unitPlacement.pRects.y.content = {}
 
-    unitPlacement.pRects.b = {}
-    unitPlacement.pRects.b.color = {0,.5,0}
-    unitPlacement.pRects.b.rect = {640, 180, 100, 100}
-    unitPlacement.pRects.b.content = {}
+    unitPlacement.pRects.g = {}
+    unitPlacement.pRects.g.color = {0,.5,0}
+    unitPlacement.pRects.g.rect = {640, 180, 100, 100}
+    unitPlacement.pRects.g.content = {}
 
 end
 
@@ -44,7 +44,7 @@ function unitPlacement.update(dt)
         suit.layout:reset(pRect.rect[1], pRect.rect[2]+110)
         for unitKey, unitName in pairs(unitPlacement.armyList) do
             -- the ID is: pRect#+unitName+index
-            -- where pRect# is 1=r, 2=y, 3=b
+            -- where pRect# is 1=r, 2=y, 3=g
             suit.Button(unitName, {id = k..unitName..tostring(unitKey)}, suit.layout:row(100,20))
         end
         
@@ -64,7 +64,7 @@ function unitPlacement.update(dt)
         suit.layout:reset(pRect.rect[1], pRect.rect[2]-30)
         for unitKey, unitName in pairs(pRect.content) do
             -- the ID is: pRect#+unitName+index
-            -- where pRect# is 1=r, 2=y, 3=b
+            -- where pRect# is 1=r, 2=y, 3=g
             -- * we add the 'PRC' because we need to distinguish the P Rect Content
             -- * buttons from the armyList buttons, else they trigger each other
             suit.Button(unitName, {id = 'PRC'..k..unitName..tostring(unitKey)}, suit.layout:up(100, 20))
@@ -83,6 +83,21 @@ function unitPlacement.update(dt)
     
     
     end
+
+    -- if the armyList is empty, draw the "Enter Game" Button
+    if next(unitPlacement.armyList) == nil then
+        suit.Button('Enter Game', 326, 450, 100, 20)
+    end
+    if suit.isHit('Enter Game') then
+        -- initialize the board before we jump in
+        board.load()
+        -- ! can be optimized-- copy/paste code
+        board.setContent(board.lanes['r'][1], unitPlacement.pRects.r.content)
+        board.setContent(board.lanes['y'][1], unitPlacement.pRects.y.content)
+        board.setContent(board.lanes['g'][1], unitPlacement.pRects.g.content)
+        changeScreen(board)
+    end
+
 
 end
 
