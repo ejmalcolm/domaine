@@ -1,6 +1,7 @@
 menu = require("menu")
 board = require("board")
 buildArmy = require("buildArmy")
+unitPlacement = require('unitPlacement')
 
 local currentScreen
 
@@ -9,7 +10,9 @@ function love.load()
 	love.window.setMode(750, 500)
     love.window.setTitle('Domaine')
     --this has to be moved eventually
-	board.load()
+    --loads in the "assets"-- prebuilt rectangles
+    board.load()
+    unitPlacement.load()
 end
 
 function changeScreen(screen)

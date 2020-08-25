@@ -14,7 +14,6 @@ unitList['Big Boy'] = {1, 2, 3}
 unitList['Hunter'] = {1, 2, 4}
 unitList['Archer'] = {1, 2, 3}
 
-unitList['Flagbearer'] = {2, 3, 6}
 unitList['Tunneler'] = {1, 2, 4}
 unitList['Kidnapper'] = {1, 2, 4}
 unitList['Sapper'] = {1, 2, 4}

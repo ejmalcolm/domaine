@@ -1,9 +1,5 @@
 local board = {}
 
-function board.setArmy(armyList)
-	board.army = armyList
-end
-
 function board.load()
 	board.redLane = {}
 	board.yellowLane = {}
