@@ -10,12 +10,6 @@ function menu.update(dt)
         unitPlacement.load()
         changeScreen(buildArmy)
     end
-    -- button to connect to a game
-    local connectButton = suit.Button('Connect to Game', 225, 240, 300, 30)
-    if connectButton.hit then
-        ConnectScreen.load()
-        changeScreen(ConnectScreen)
-    end
 end
 
 function menu.draw()
