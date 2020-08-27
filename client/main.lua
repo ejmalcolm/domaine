@@ -4,6 +4,7 @@ buildArmy = require("buildArmy")
 unitPlacement = require('unitPlacement')
 connectScreen = require('ConnectScreen')
 
+suit = require("suit")
 local sock = require("sock")
 local currentScreen
 
@@ -13,11 +14,10 @@ function sleep(n)
 end
 
 function love.load()
+    love.keyboard.setKeyRepeat(true)
 	currentScreen = menu
-	love.window.setMode(750, 500)
+    love.window.setMode(750, 500)
     love.window.setTitle('Domaine')
-    --this has to be moved eventually
-    --loads in the "assets"-- prebuilt rectangles
 end
 
 function changeScreen(screen)
@@ -35,11 +35,6 @@ function connectToHost(ip)
         print('Successfully connected!')
     end)
 
-    --on disconnect
-    client:on("disconnect", function(data) 
-        print("Client disconnected from the server.")
-    end)
-
     --for getting the player index (p1 or p2)
     client:on("setUpGame", function(num)
         playerNumber = num
@@ -53,13 +48,6 @@ function connectToHost(ip)
     -- when called, the client updates its copy of the Lanes to match the server's
     client:on("updateLanes", function(UpdatedLanes)
         board.lanes = UpdatedLanes
-        -- for k1, lane in pairs(data) do
-        --     for k2, tile in pairs(lane) do
-        --         for k3, unitName in pairs(tile.content) do
-        --             print(unitName)
-        --         end
-        --     end
-        -- end
     end)
 
     -- actually connect

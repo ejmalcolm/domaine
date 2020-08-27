@@ -86,7 +86,7 @@ function unitPlacement.update(dt)
 
     -- if the armyList is empty, draw the "Enter Game" Button
     if next(unitPlacement.armyList) == nil then
-        suit.Button('Connect to Server', 326, 450, 100, 20)
+        suit.Button('Connect to Server', 320, 450, 120, 20)
     end
     if suit.isHit('Connect to Server') then
         -- go to connect screen

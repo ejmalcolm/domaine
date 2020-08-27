@@ -1,6 +1,6 @@
 menu = {}
 
-local suit = require('suit')
+local suit = require("suit")
 
 function menu.update(dt)
     -- ! change these to layout-based
@@ -10,6 +10,7 @@ function menu.update(dt)
         unitPlacement.load()
         changeScreen(buildArmy)
     end
+
 end
 
 function menu.draw()

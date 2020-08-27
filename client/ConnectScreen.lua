@@ -32,7 +32,7 @@ function ConnectScreen.update(dt)
         -- one at a time, add each unit from unitPlacement into the matching starting Tile
         for _, tile in pairs({'r', 'y', 'g'}) do
             for _, unit in pairs(unitPlacement.pRects[tile].content) do
-                client:send("addUnitToTile", {unit, tile..'A'})
+                client:send("createUnitOnTile", {unit, tile..'A'})
             end
         end
         -- set screen to board once everything's ready
