@@ -29,7 +29,8 @@ function buildArmy.update(dt)
     end
 
     --create the armyList buttons
-    suit.layout:reset(326, 300)
+    -- x, y = love.graphics.getDimensions()
+    suit.layout:reset(324, 300)
     for k, v in pairs(armyList) do
         suit.Button(v, {id = v..tostring(k)}, suit.layout:row(100, 20))
     end

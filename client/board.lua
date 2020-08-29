@@ -39,9 +39,11 @@ function board.load()
 
 	-- image assets
 	UpArrow = love.graphics.newImage('UpArrow.png')
+	UpArrowHovered = love.graphics.newImage('UpArrowHovered.png')
 	DownArrow = love.graphics.newImage('DownArrow.png')
+	DownArrowHovered = love.graphics.newImage('DownArrowHovered.png')
 	AttackIcon = love.graphics.newImage('AttackIcon.png')
-
+	AttackIconHovered = love.graphics.newImage('AttackIconHovered.png')
 end
 
 function board.update(dt)
@@ -68,8 +70,12 @@ function board.update(dt)
 					end
 				else
 					-- enemy units, use enemy theme
-					EnemySuit:Button(unit.name, {id = uid}, suit.layout:row(90,17))
-					
+					local enemyButton = EnemySuit:Button(unit.name, {id = uid}, suit.layout:row(90,17))
+					-- * logic for targeting enemy units
+					if enemyButton.hit then
+						local tileRef = laneKey..tileKey
+						TriggerEvent('targetEnemy', {unit, tileRef})
+					end
 				end
 				-- if this unit is the active unit, activate the control panel and the info panel
 				if unit == ActiveUnit then
@@ -79,7 +85,7 @@ function board.update(dt)
 						InfoPanelSuit.layout:reset(tile.rect[1]+140, tile.rect[2])
 					elseif laneKey == 'g' then
 						-- else, if it's in green, make the cpanel/ipanel to the left
-						CPanelSuit.layout:reset(tile.rect[1]-30, tile.rect[2])
+						CPanelSuit.layout:reset(tile.rect[1]-30, tile.rect[2]+5)
 						InfoPanelSuit.layout:reset(tile.rect[1]-140, tile.rect[2])
 					end
 					CPanelSuit.layout:padding(2)
@@ -88,7 +94,7 @@ function board.update(dt)
 					-- ! repeated code here, could possibly be optimized
 					if tileKey ~= 1 then
 						-- if not in the "upmost" tile, have a down arrow
-						local moveUp = CPanelSuit:ImageButton(UpArrow, CPanelSuit.layout:row(20,20))
+						local moveUp = CPanelSuit:ImageButton(UpArrow, {hovered=UpArrowHovered}, CPanelSuit.layout:row(20,20))
 						if moveUp.hit then
 							-- first, remove self from current tile
 							local tileRef = laneKey..tileKey
@@ -104,7 +110,7 @@ function board.update(dt)
 					end
 					if tileKey ~= 3 then
 						-- if not in the "downmost" tile, have a down arrow
-						local moveDown = CPanelSuit:ImageButton(DownArrow, CPanelSuit.layout:row(20,20))
+						local moveDown = CPanelSuit:ImageButton(DownArrow, {hovered=DownArrowHovered}, CPanelSuit.layout:row(20,20))
 						if moveDown.hit then
 							-- first, remove self from current tile
 							local tileRef = laneKey..tileKey
@@ -118,10 +124,17 @@ function board.update(dt)
 							client:send("addUnitToTile", {unit, newTileRef})
 						end
 					end
-					-- attack Button
-					local attackButton = CPanelSuit:ImageButton(AttackIcon, CPanelSuit.layout:row(20,20))
+					-- attack Button with logic
+					local attackButton = CPanelSuit:ImageButton(AttackIcon, {hovered=AttackIconHovered}, CPanelSuit.layout:row(20,20))
+					if attackButton.hit then
+						-- create an alert asking for an attack target
+						CreateAlert('Select an attack target.', 5)
+						-- queue up an attack  on a enemyTarget
+						local tileRef = laneKey..tileKey
+						WaitFor('targetEnemy', client.send, {client, "unitAttack", {unit, tileRef, 'triggerArgs'} })
+					end
 					-- empty label for spacing
-					local spacer = CPanelSuit:Label('', CPanelSuit.layout:row(3,3))
+					CPanelSuit:Label('', CPanelSuit.layout:row(3,3))
 					-- use ability button
 					local useAbilityButton = CPanelSuit:Button('A', CPanelSuit.layout:row(20,20))
 					-- * infopanel creation
@@ -131,7 +144,7 @@ function board.update(dt)
 					local statString = string.format('%sATK | %sHP', unit.attack, unit.health)
 					InfoPanelSuit:Label(statString, InfoPanelSuit.layout:row(100,20))
 					-- description of special
-					local shortSpecialDesc = 'Rand is immune to all other Specials.'
+					local shortSpecialDesc = unit.specTable.shortDesc
 					InfoPanelSuit:Label(shortSpecialDesc, InfoPanelSuit.layout:row(100,20))
 				end
 			end
@@ -160,10 +173,17 @@ function board.draw()
 	-- this is the default gray/silver color
 	love.graphics.setColor({186,186,186})
 	CPanelSuit.theme.color.normal.bg = {0.25, 0.25, 0.25}
+	CPanelSuit.theme.color.hovered.bg = {231/255, 95/255, 98/255}
 	CPanelSuit:draw()
 	-- draw the info panel
 	love.graphics.setColor({186,186,186})
 	InfoPanelSuit:draw()
+	-- after all the fuckery everywhere else its good to reset the theme back to default
+	suit.theme.color = {
+		normal   = {bg = { 0.25, 0.25, 0.25}, fg = {0.73,0.73,0.73}},
+		hovered  = {bg = { 0.19,0.6,0.73}, fg = {1,1,1}},
+		active   = {bg = {1,0.6,  0}, fg = {1,1,1}}
+	}
 end
 
 return board

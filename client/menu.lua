@@ -3,9 +3,11 @@ menu = {}
 local suit = require("suit")
 
 function menu.update(dt)
-    -- ! change these to layout-based
     -- button to launch into unitPlacement
-    local startButton = suit.Button("Start Game", 225, 200, 300, 30)
+    -- center the button
+    local x, y = love.graphics.getDimensions()
+    suit.layout:reset(x/2-150, y/2-15)
+    local startButton = suit.Button("Start Game", suit.layout:row(300, 30))
     if startButton.hit then
         unitPlacement.load()
         changeScreen(buildArmy)
