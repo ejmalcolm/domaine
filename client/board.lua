@@ -36,6 +36,7 @@ function board.load()
 	EnemySuit = suit.new()
 	CPanelSuit = suit.new()
 	InfoPanelSuit = suit.new()
+	TurnCounterSuit = suit.new()
 
 	-- image assets
 	UpArrow = love.graphics.newImage('UpArrow.png')
@@ -47,7 +48,7 @@ function board.load()
 end
 
 function board.update(dt)
-	-- for each line
+	-- everything that is done in each tile is managed in this loop
 	for laneKey, lane in pairs(board.lanes) do
 	-- for each tile in the lane
 		for tileKey, tile in pairs(lane) do
@@ -150,6 +151,13 @@ function board.update(dt)
 			end
 		end
 	end
+	-- create the turn counter
+	TurnCounterSuit.layout:reset(0,0)
+	TurnCounterSuit.layout:padding(1)
+	TurnCounterSuit:Button('Turn 5', TurnCounterSuit.layout:row(130,20))
+	TurnCounterSuit:Button('It is your turn.', TurnCounterSuit.layout:row())
+	TurnCounterSuit:Button('1 Secondary Action', TurnCounterSuit.layout:col())
+	TurnCounterSuit:Button('1 Primary Action', TurnCounterSuit.layout:up())
 end
 
 function board.draw()
@@ -178,7 +186,11 @@ function board.draw()
 	-- draw the info panel
 	love.graphics.setColor({186,186,186})
 	InfoPanelSuit:draw()
-	-- after all the fuckery everywhere else its good to reset the theme back to default
+	-- draw the turn counter
+	CPanelSuit.theme.color.normal.bg = {186/255,186/255,186/255}
+	CPanelSuit.theme.color.normal.fg = {0,0,0}
+	TurnCounterSuit:draw()
+	-- after all the theme fuckery everywhere else its good to reset the theme back to default
 	suit.theme.color = {
 		normal   = {bg = { 0.25, 0.25, 0.25}, fg = {0.73,0.73,0.73}},
 		hovered  = {bg = { 0.19,0.6,0.73}, fg = {1,1,1}},

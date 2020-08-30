@@ -202,7 +202,7 @@ function love.load()
             -- if the HP is zero or below, delete the unit
             table.remove(defTile.content, dIndex)
             server:sendToPeer(getPeer(client), "createAlert",
-                            {defender.name..' was killed by '..attacker.name, 5})
+                            {attacker.name..' killed '..defender.name, 5})
         else
             -- if the HP is above zero, change the HP stat
             -- find the unit in place, set the new HP
