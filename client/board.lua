@@ -2,14 +2,13 @@ local board = {}
 
 local suit = require("suit")
 
-function board.setContent(tile, newContent)
-	-- set a given tile's content to the given newContent
-	tile.content = newContent
+function isMyTurn()
+  return CurrentTurnTaker == playerNumber
 end
 
 function board.load()
 	board.lanes = {}
-	-- the structures is board.lanes.LANENAME.[TILE#]
+	-- the structure is board.lanes.LANENAME.[TILE#]
 	-- where LANENAME = r, y, g
 	-- TILE# = 1, 2, 3
 	for k1, lane in pairs({'r', 'y', 'g'}) do
@@ -45,10 +44,14 @@ function board.load()
 	DownArrowHovered = love.graphics.newImage('DownArrowHovered.png')
 	AttackIcon = love.graphics.newImage('AttackIcon.png')
 	AttackIconHovered = love.graphics.newImage('AttackIconHovered.png')
+
+  -- used to manage the turn system
+  ActionsRemaining = {primary=1, secondary=1}
+
 end
 
 function board.update(dt)
-	-- everything that is done in each tile is managed in this loop
+	-- ! everything that is done in each tile is managed in this loop
 	for laneKey, lane in pairs(board.lanes) do
 	-- for each tile in the lane
 		for tileKey, tile in pairs(lane) do
@@ -80,6 +83,7 @@ function board.update(dt)
 				end
 				-- if this unit is the active unit, activate the control panel and the info panel
 				if unit == ActiveUnit then
+          CPanelSuit.layout:padding(2)
 					-- if the tile is in the red or yellow lanes (left or middle), make the cpanel and ipanel to the right
 					if laneKey == 'r' or laneKey == 'y' then
 						CPanelSuit.layout:reset(tile.rect[1]+110, tile.rect[2]+5)
@@ -89,56 +93,59 @@ function board.update(dt)
 						CPanelSuit.layout:reset(tile.rect[1]-30, tile.rect[2]+5)
 						InfoPanelSuit.layout:reset(tile.rect[1]-140, tile.rect[2])
 					end
-					CPanelSuit.layout:padding(2)
-					-- * control panel creation
-					-- move up/down arrows
-					-- ! repeated code here, could possibly be optimized
-					if tileKey ~= 1 then
-						-- if not in the "upmost" tile, have a down arrow
-						local moveUp = CPanelSuit:ImageButton(UpArrow, {hovered=UpArrowHovered}, CPanelSuit.layout:row(20,20))
-						if moveUp.hit then
-							-- first, remove self from current tile
-							local tileRef = laneKey..tileKey
-							print(unit.name..' removed from: '..tileRef)
-							client:send("removeUnitFromTile", {unit, tileRef})
-							-- then, figure out what tile is above
-							local newTileKey = tileKey-1
-							local newTileRef = laneKey..newTileKey
-							-- then, add to the new tile
-							print(unit.name..' added to: '..newTileRef)
-							client:send("addUnitToTile", {unit, newTileRef})
-						end
-					end
-					if tileKey ~= 3 then
-						-- if not in the "downmost" tile, have a down arrow
-						local moveDown = CPanelSuit:ImageButton(DownArrow, {hovered=DownArrowHovered}, CPanelSuit.layout:row(20,20))
-						if moveDown.hit then
-							-- first, remove self from current tile
-							local tileRef = laneKey..tileKey
-							print(unit.name..' removed from: '..tileRef)
-							client:send("removeUnitFromTile", {unit, tileRef})
-							-- then, figure out what tile is below
-							local newTileKey = tileKey+1
-							local newTileRef = laneKey..newTileKey
-							-- then, add to the new tile
-							print(unit.name..' added to: '..newTileRef)
-							client:send("addUnitToTile", {unit, newTileRef})
-						end
-					end
-					-- attack Button with logic
-					local attackButton = CPanelSuit:ImageButton(AttackIcon, {hovered=AttackIconHovered}, CPanelSuit.layout:row(20,20))
-					if attackButton.hit then
-						-- create an alert asking for an attack target
-						CreateAlert('Select an attack target.', 5)
-						-- queue up an attack  on a enemyTarget
-						local tileRef = laneKey..tileKey
-						WaitFor('targetEnemy', client.send, {client, "unitAttack", {unit, tileRef, 'triggerArgs'} })
-					end
-					-- empty label for spacing
-					CPanelSuit:Label('', CPanelSuit.layout:row(3,3))
-					-- use ability button
-					local useAbilityButton = CPanelSuit:Button('A', CPanelSuit.layout:row(20,20))
-					-- * infopanel creation
+          -- * control panel creation
+          -- * we only create the parts of the panel that can be used
+          -- overall, we only create the control panel if its our turn
+          if isMyTurn() then
+          -- move buttons if we have secondary actions
+            if ActionsRemaining.secondary >= 1 then
+              -- ! repeated code here, could possibly be optimized
+              -- move up/down arrows
+              if tileKey ~= 1 then
+                -- if not in the "upmost" tile, have a down arrow
+                local moveUp = CPanelSuit:ImageButton(UpArrow, {hovered=UpArrowHovered}, CPanelSuit.layout:row(20,20))
+                if moveUp.hit then
+                  -- first, get the current tile
+                  local tileRef = laneKey..tileKey
+                  -- then, figure out what tile is below
+                  local newTileKey = tileKey-1
+                  local newTileRef = laneKey..newTileKey
+                  -- then, send the move message to the server
+                  client:send("unitMove", {unit, tileRef, newTileRef})
+                end
+              end
+              if tileKey ~= 3 then
+                -- if not in the "downmost" tile, have a down arrow
+                local moveDown = CPanelSuit:ImageButton(DownArrow, {hovered=DownArrowHovered}, CPanelSuit.layout:row(20,20))
+                if moveDown.hit then
+                  -- first, get the current tile
+                  local tileRef = laneKey..tileKey
+                  -- then, figure out what tile is below
+                  local newTileKey = tileKey+1
+                  local newTileRef = laneKey..newTileKey
+                  -- then, send the move message to the server
+                  client:send("unitMove", {unit, tileRef, newTileRef})
+                end
+              end
+            end
+            -- attack/ability button if we have primary actions
+            if ActionsRemaining.primary >= 1 then
+              -- attack Button with logic
+              local attackButton = CPanelSuit:ImageButton(AttackIcon, {hovered=AttackIconHovered}, CPanelSuit.layout:row(20,20))
+              if attackButton.hit then
+                -- create an alert asking for an attack target
+                CreateAlert('Select an attack target.', 5)
+                -- queue up an attack  on a enemyTarget
+                local tileRef = laneKey..tileKey
+                WaitFor('targetEnemy', client.send, {client, "unitAttack", {unit, tileRef, 'triggerArgs'} })
+              end
+              -- empty label for spacing
+              CPanelSuit:Label('', CPanelSuit.layout:row(3,3))
+              -- use ability button
+              local useAbilityButton = CPanelSuit:Button('A', CPanelSuit.layout:row(20,20))
+            end
+          end
+          -- * infopanel creation
 					-- name of selected unit
 					InfoPanelSuit:Label(unit.name, InfoPanelSuit.layout:row(100,20))
 					-- atk and hp
@@ -150,14 +157,44 @@ function board.update(dt)
 				end
 			end
 		end
-	end
-	-- create the turn counter
+  end
+  
+	-- * create the turn counter
 	TurnCounterSuit.layout:reset(0,0)
-	TurnCounterSuit.layout:padding(1)
-	TurnCounterSuit:Button('Turn 5', TurnCounterSuit.layout:row(130,20))
-	TurnCounterSuit:Button('It is your turn.', TurnCounterSuit.layout:row())
-	TurnCounterSuit:Button('1 Secondary Action', TurnCounterSuit.layout:col())
-	TurnCounterSuit:Button('1 Primary Action', TurnCounterSuit.layout:up())
+  TurnCounterSuit.layout:padding(1)
+  TurnCounterSuit:Button('Turn X', TurnCounterSuit.layout:row(130,20))
+  if isMyTurn() then
+    local endTurnButton = TurnCounterSuit:Button('End your turn', TurnCounterSuit.layout:row())
+    if endTurnButton.hit then client:send("endMyTurn") end
+  else
+    TurnCounterSuit:Button('Enemy turn', TurnCounterSuit.layout:row())
+  end
+
+  -- counter for amount of secondary actions
+  local secondaryText = string.format('%s Secondary Action', ActionsRemaining.secondary)
+  -- pluralize
+  if ActionsRemaining.secondary ~= 1 then secondaryText = secondaryText..'s' end
+  TurnCounterSuit:Button(secondaryText, TurnCounterSuit.layout:col())
+
+  -- counter for amount of primary actions
+  local primaryText = string.format('%s Primary Action', ActionsRemaining.primary)
+  -- pluralize
+  if ActionsRemaining.primary ~= 1 then primaryText = primaryText..'s' end
+  TurnCounterSuit:Button(primaryText, TurnCounterSuit.layout:up())
+
+  -- * check if out of actions (end turn)
+  -- only check if it's your turn to begin with
+  if isMyTurn() then
+    local outOfActions = true
+    for k, v in pairs(ActionsRemaining) do 
+      if v >= 1 then
+        -- if there are any actions not at 0, keep going
+        outOfActions = false
+      end
+    end
+    if outOfActions then client:send("endMyTurn") end
+    if outOfActions then print(playerNumber..' out of actions') end
+  end
 end
 
 function board.draw()

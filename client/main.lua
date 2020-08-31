@@ -102,6 +102,8 @@ function love.load()
   AudioSources["walkingAlong"] = love.audio.newSource('sounds/walkingAlong.mp3', 'stream')
   AudioSources["walkingAlong"]:setVolume(.25)
   love.audio.play(AudioSources["walkingAlong"])
+  -- used for the turn system
+  CurrentTurnTaker = 1
   -- initialize by setting the currentScreen to the menu
 	currentScreen = menu
 end
@@ -116,6 +118,8 @@ function connectToHost(ip)
   tick = 0
   client = sock.newClient(ip, 22122)
 
+  -- ! SETUP CLIENT
+
   -- on connection
   client:on("connect", function(data)
     print('Successfully connected!')
@@ -128,6 +132,8 @@ function connectToHost(ip)
     -- once the client knows what number it is, it's ready to go
     Ready = true
   end)
+
+  -- ! SERVER-TO-USER COMMUNICATION
 
   -- allows the server to create client-side alerts
   client:on("createAlert", function(data)
@@ -143,9 +149,25 @@ function connectToHost(ip)
     board.lanes = UpdatedLanes
   end)
 
+  -- ! TURN SYSTEM
 
+  -- * used to manage turn timer and amount of actions
+  client:on("actionUsed", function(actionType)
+    print(actionType.. ' action used.')
+    ActionsRemaining[actionType] = ActionsRemaining[actionType] - 1
+  end)
 
-  -- actually connect
+  -- * used to set who's turn it is
+  client:on("setPlayerTurn", function(playerN)
+    print('It is now player '..playerN.."'s turn.")
+    -- if it's now your turn, reset turn counter
+    if CurrentTurnTaker == playerNumber then
+      ActionsRemaining.primary, ActionsRemaining.secondary = 1,1
+    end
+    CurrentTurnTaker = playerN
+  end)
+
+  -- ! CONNECTION TO SERVER
   local function dummyConnect()
     client:connect()
   end
