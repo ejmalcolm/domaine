@@ -5,16 +5,27 @@ unitPlacement = require('unitPlacement')
 connectScreen = require('ConnectScreen')
 
 suit = require("suit")
-local inspect = require("inspect")
+inspect = require("inspect")
 local sock = require("sock")
 
 local currentScreen
 
--- TODO: turn system
+-- TODO: optimization-- only call love.getDImensions() once in main.lua love.update, else we're being expensive for no reason
 
-function Sleep(n)
-  -- only works in windows
-  if n > 0 then os.execute("ping -n " .. tonumber(n+1) .. " localhost > NUL") end
+function Round(n)
+  return math.floor(n+.5)
+end
+
+-- * temporary solution to adjust coordinates from the default res to different reses
+-- * does not fix for phones! need a diff solution
+function AdjustCenter(coord, XorY)
+  local x,y = love.graphics.getDimensions()
+  local Centers = {centerX=Round(x/2),centerY=Round(y/2)}
+  local center = Centers['center'..XorY]
+  local defaultCenter
+  if XorY=="X" then defaultCenter=375 else defaultCenter=250 end
+  local distanceFromCenter = defaultCenter-coord
+  return center-distanceFromCenter
 end
 
 function CreateAlert(alertText, duration)
@@ -26,7 +37,7 @@ end
 
 function UpdateAlerts(dt)
   local x,y = love.graphics.getDimensions()
-  local center = x/2
+  local center = Round(x/2)
   for alertText, timeRemaining in pairs(ActiveAlerts) do
     ActiveAlerts[alertText] = timeRemaining-dt
     if ActiveAlerts[alertText] > 0 then
@@ -85,30 +96,8 @@ function TriggerEvent(event, triggerArgs)
   end
 end
 
-function love.load()
-  -- used as a queueing system for WaitFor() events
-  WaitingFor = {}
-  -- used to draw temporary alerts
-  AlertSuit = suit.new()
-  ActiveAlerts = {}
-  -- basic settings
-  love.keyboard.setKeyRepeat(true)
-  love.window.setTitle('Domaine')
-  love.window.setMode(750, 500, {fullscreen=false})
-  -- audio assets (expensive to create many times)
-  AudioSources = {}
-  AudioSources["alertSound"] = love.audio.newSource('sounds/alertSoundDown.wav', 'static')
-  AudioSources["alertSound"]:setVolume(.25)
-  AudioSources["walkingAlong"] = love.audio.newSource('sounds/walkingAlong.mp3', 'stream')
-  AudioSources["walkingAlong"]:setVolume(.25)
-  love.audio.play(AudioSources["walkingAlong"])
-  -- used for the turn system
-  CurrentTurnTaker = 1
-  -- initialize by setting the currentScreen to the menu
-	currentScreen = menu
-end
-
 function changeScreen(screen)
+  if screen.load then screen.load() end
   currentScreen = screen
 end
 
@@ -159,11 +148,10 @@ function connectToHost(ip)
 
   -- * used to set who's turn it is
   client:on("setPlayerTurn", function(playerN)
-    print('It is now player '..playerN.."'s turn.")
-    -- if it's now your turn, reset turn counter
-    if CurrentTurnTaker == playerNumber then
-      ActionsRemaining.primary, ActionsRemaining.secondary = 1,1
-    end
+    print('Player '..CurrentTurnTaker..'\'s turn ended.')
+    print('It is now Player'..playerN..'\'s turn')
+    -- if it's now your turn, reset available actions
+    ActionsRemaining.primary, ActionsRemaining.secondary = 1,1
     CurrentTurnTaker = playerN
   end)
 
@@ -180,7 +168,34 @@ function connectToHost(ip)
   end
 end
 
+-- ! LOVE loops and game events
+
+function love.load()
+  -- used as a queueing system for WaitFor() events
+  WaitingFor = {}
+  -- used to draw temporary alerts
+  AlertSuit = suit.new()
+  ActiveAlerts = {}
+  -- basic settings
+  love.keyboard.setKeyRepeat(true)
+  love.window.setTitle('Domaine')
+  love.window.setMode(750, 500, {resizable=true})
+  -- audio assets (expensive to create many times)
+  AudioSources = {}
+  AudioSources["alertSound"] = love.audio.newSource('sounds/alertSoundDown.wav', 'static')
+  AudioSources["alertSound"]:setVolume(.25)
+  AudioSources["walkingAlong"] = love.audio.newSource('sounds/walkingAlong.mp3', 'stream')
+  AudioSources["walkingAlong"]:setVolume(.25)
+  love.audio.play(AudioSources["walkingAlong"])
+  -- used for the turn system
+  CurrentTurnTaker = 1
+  -- initialize by setting the currentScreen to the menu
+	currentScreen = menu
+end
+
 function love.update(dt)
+  -- * quit the game with escape!
+  if love.keyboard.isDown('escape') then love.event.quit() end
   -- control the multiplayer stuff
   if Connected then
     client:update()
@@ -190,6 +205,7 @@ function love.update(dt)
   -- update the current screen
   currentScreen.update(dt)
 end
+
 
 function love.draw()
   -- draw alerts

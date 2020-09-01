@@ -1,0 +1,17 @@
+
+NEXT: make the game work on phones
+
+THEN: finish Ascendant design
+
+THEN: Ascendant Choice Screen
+THEN: Ascendants/Ascendant Power Panel
+
+THEN: Victory Conditions, winning and losing
+
+THEN: finish unit design
+
+THEN: Unit abilities
+
+THEN: Actual connection framework: "Find Game", server browser?
+  - Direct Connect, host/connect options
+  - Game Lobbies, lounge full of all different options

@@ -56,7 +56,7 @@ function board.update(dt)
 	-- for each tile in the lane
 		for tileKey, tile in pairs(lane) do
 			-- create a Button for each unit inside
-			suit.layout:reset(tile.rect[1]+5, tile.rect[2]+5)
+			suit.layout:reset(AdjustCenter(tile.rect[1]+5, 'X'), AdjustCenter(tile.rect[2]+5, 'Y'))
 			for unitKey, unit in pairs(tile.content) do
 				-- each unit has the following format:
 				-- {uid= 'Rand0', name='Rand', player=1, cost=2, attack=3, health=6}
@@ -64,19 +64,22 @@ function board.update(dt)
 				-- create the button representing this unit, w/ attached logic
 				if unit.player == playerNumber then
 					-- if they're friendly units, use friendly theme
-					local friendButton = AlliedSuit:Button(unit.name, {id = uid}, suit.layout:row(90,17))
+					local allyButton = AlliedSuit:Button(unit.name, {id = uid}, suit.layout:row(90,17))
 					-- * logic for selecting allied units
 					-- when you click an allied unit
-					if friendButton.hit then
+					if allyButton.hit then
 						-- set it to the ActiveUnit
 						print('The active unit is: '.. uid)
-						ActiveUnit = unit
+            ActiveUnit = unit
+            TriggerEvent('targetAlly')
 					end
 				else
 					-- enemy units, use enemy theme
 					local enemyButton = EnemySuit:Button(unit.name, {id = uid}, suit.layout:row(90,17))
 					-- * logic for targeting enemy units
-					if enemyButton.hit then
+          if enemyButton.hit then
+            print('The active unit is: '..uid)
+            ActiveUnit = unit
 						local tileRef = laneKey..tileKey
 						TriggerEvent('targetEnemy', {unit, tileRef})
 					end
@@ -86,17 +89,17 @@ function board.update(dt)
           CPanelSuit.layout:padding(2)
 					-- if the tile is in the red or yellow lanes (left or middle), make the cpanel and ipanel to the right
 					if laneKey == 'r' or laneKey == 'y' then
-						CPanelSuit.layout:reset(tile.rect[1]+110, tile.rect[2]+5)
-						InfoPanelSuit.layout:reset(tile.rect[1]+140, tile.rect[2])
+						CPanelSuit.layout:reset(AdjustCenter(tile.rect[1]+110, 'X'), AdjustCenter(tile.rect[2]+5, 'Y'))
+						InfoPanelSuit.layout:reset(AdjustCenter(tile.rect[1]+140, 'X'), AdjustCenter(tile.rect[2], 'Y'))
 					elseif laneKey == 'g' then
 						-- else, if it's in green, make the cpanel/ipanel to the left
-						CPanelSuit.layout:reset(tile.rect[1]-30, tile.rect[2]+5)
-						InfoPanelSuit.layout:reset(tile.rect[1]-140, tile.rect[2])
+						CPanelSuit.layout:reset(AdjustCenter(tile.rect[1]-30, 'X'), AdjustCenter(tile.rect[2]+5, 'Y'))
+						InfoPanelSuit.layout:reset(AdjustCenter(tile.rect[1]-140, 'X'), AdjustCenter(tile.rect[2],'Y'))
 					end
-          -- * control panel creation
           -- * we only create the parts of the panel that can be used
-          -- overall, we only create the control panel if its our turn
-          if isMyTurn() then
+          -- * control panel creation
+          -- overall, we only create the control panel if its our turn and if the activeUnit is allied
+          if isMyTurn() and ActiveUnit.player == playerNumber then
           -- move buttons if we have secondary actions
             if ActionsRemaining.secondary >= 1 then
               -- ! repeated code here, could possibly be optimized
@@ -185,16 +188,12 @@ function board.update(dt)
   -- * check if out of actions (end turn)
   -- only check if it's your turn to begin with
   if isMyTurn() then
-    local outOfActions = true
-    for k, v in pairs(ActionsRemaining) do 
-      if v >= 1 then
-        -- if there are any actions not at 0, keep going
-        outOfActions = false
-      end
+    if not(ActionsRemaining.primary) and not(ActionsRemaining.secondary) then
+      print('Player out of actions')
+      client:send("endMyTurn")
     end
-    if outOfActions then client:send("endMyTurn") end
-    if outOfActions then print(playerNumber..' out of actions') end
   end
+
 end
 
 function board.draw()
@@ -202,8 +201,9 @@ function board.draw()
 	for k, lane in pairs(board.lanes) do
 		-- then, get each tile in that lane
 		for _, tile in pairs(lane) do
-			love.graphics.setColor(tile.color)
-			love.graphics.rectangle('line', unpack(tile.rect))
+      love.graphics.setColor(tile.color)
+      local x, y, w, h = unpack(tile.rect)
+      love.graphics.rectangle('line', AdjustCenter(x, 'X'), AdjustCenter(y, 'Y'),w,h)
 		end
 	end
 	-- draw board tiles
