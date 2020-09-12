@@ -1,8 +1,9 @@
 menu = require("menu")
 board = require("board")
 buildArmy = require("buildArmy")
-unitPlacement = require('unitPlacement')
-connectScreen = require('ConnectScreen')
+unitPlacement = require("unitPlacement")
+connectScreen = require("ConnectScreen")
+chooseAscendant = require("chooseAscendant")
 
 suit = require("suit")
 inspect = require("inspect")
@@ -10,7 +11,7 @@ local sock = require("sock")
 
 local currentScreen
 
--- TODO: optimization-- only call love.getDImensions() once in main.lua love.update, else we're being expensive for no reason
+-- TODO: optimization-- only call love.getDimensions() once in main.lua love.update, else we're being expensive for no reason
 
 function Round(n)
   return math.floor(n+.5)
@@ -52,6 +53,52 @@ function UpdateAlerts(dt)
   end
 end
 
+function CreatePopup(title, choicesTable, duration, event)
+  -- * creates a popup menu, that triggers the given Event when an option is clicked
+  PopupMenus[title] = {duration, choicesTable, event}
+end
+
+function UpdatePopups(dt)
+  -- * updates a popup menu over the center of the screen with a bunch of options
+  for title, data in pairs(PopupMenus) do
+    -- decrement duration
+    PopupMenus[title][1] = PopupMenus[title][1] - dt
+    -- if duration is above zero, create the popup
+    if PopupMenus[title][1] > 0 then
+      ActivePopup = true
+      -- draw the title
+      PopupSuit.layout:reset(centerX-100, centerY-100)
+      PopupSuit:Label(title, PopupSuit.layout:col(200,20))
+      -- take in account the border
+      PopupSuit.layout:reset(centerX-150, centerY-59)
+      PopupSuit.layout:padding(1)
+      -- cancel button in the top right
+      PopupSuit.layout:reset(centerX+179, centerY-99)
+      local cancelButton = PopupSuit:Button('X', PopupSuit.layout:row(20,20))
+      if cancelButton.hit then PopupMenus[title][1] = 0 end
+      -- option buttons
+      for k,v in pairs(PopupMenus[title][2]) do
+        if k % 3 == 1 then
+          PopupSuit.layout:reset(centerX-150, (centerY-59)+(20*(k/3)) )
+        end
+        local choiceButton = PopupSuit:Button(v, PopupSuit.layout:col(100,20))
+        -- when clicked, trigger the given event and then end
+        if choiceButton.hit then
+          TriggerEvent(PopupMenus[title][3], v)
+          -- delete the menu by setting duration to 0
+          PopupMenus[title][1] = 0
+        end
+      end
+    else
+      -- if duration is zero or below, delete the popup
+      ActivePopup = false
+      PopupMenus[title] = nil
+      -- alert player
+      CreateAlert('Menu dismissed.', 5)
+    end
+  end
+end
+
 function WaitFor(event, func, args)
   -- this is essentially a client-side queueing function
   -- takes an event, a certain string e.g. "targetEnemy", and a function object
@@ -69,7 +116,7 @@ function TriggerEvent(event, triggerArgs)
     -- trigger only if the event is being Awaited
     -- call the function
     local func = WaitingFor[event][1]
-    local args = WaitingFor[event][2]
+    local args = WaitingFor[event][2] or {}
     -- loop through args and sub-tables in args
     -- replace any "triggerArgs" string with the triggerArgs table
     for k, v in pairs(args) do
@@ -80,12 +127,24 @@ function TriggerEvent(event, triggerArgs)
       if type(v) == 'table' then
         for k2, v2 in pairs(v) do
           if v2 == 'triggerArgs' then
-            -- clear the subtable
+            -- clear the triggerArgs string and reset the table
             args[k][k2] = nil
+            -- this resets the indices of the table
+            -- which stops the "empty" spot where the 'triggerArgs' was
+            -- from messing things up
+            -- * basically, what happens here is:
+            -- * {1, 'triggerArgs', 3} goes to {1, nil, 3}
+            -- * then, if we insert any new arguments, that nil stays there
+            -- * this gets rid of the nil
+            local newArgs = {}
+            for _,p in pairs(args[k]) do table.insert(newArgs, p) end
+            args[k] = newArgs
             -- if its a subtable, then we unpack it and add it to overtable
-            for _, triggerArg in pairs(triggerArgs) do
-              table.insert(args[k], triggerArg)
+            for k3, triggerArg in pairs(triggerArgs) do
+              -- the (k3-1) ensures that arguments are added in their proper order
+              table.insert(args[k], k2+(k3-1), triggerArg)
             end
+            print(inspect(args))
           end
         end
       end
@@ -131,6 +190,12 @@ function connectToHost(ip)
     CreateAlert(alertText, duration)
   end)
 
+  Gamestate = {}
+  client:on("updateVar", function(data)
+  local varName, varValue = data[1], data[2]
+  Gamestate[varName] = varValue
+  end)
+
   -- ! BOARD FUNCTIONS
 
   -- * when called, the client updates its copy of the Lanes to match the server's
@@ -168,7 +233,9 @@ function connectToHost(ip)
   end
 end
 
+
 -- ! LOVE loops and game events
+
 
 function love.load()
   -- used as a queueing system for WaitFor() events
@@ -176,6 +243,9 @@ function love.load()
   -- used to draw temporary alerts
   AlertSuit = suit.new()
   ActiveAlerts = {}
+  -- used for popup menus
+  PopupSuit = suit.new()
+  PopupMenus = {}
   -- basic settings
   love.keyboard.setKeyRepeat(true)
   love.window.setTitle('Domaine')
@@ -189,35 +259,73 @@ function love.load()
   love.audio.play(AudioSources["walkingAlong"])
   -- used for the turn system
   CurrentTurnTaker = 1
+  -- set up the color theme
+  AscendantTheme = {
+    normal   = {bg = { 0.25, 0.25, 0.25}, fg = {0.73,0.73,0.73}},
+    hovered  = {bg = { 0.19,0.6,0.73}, fg = {1,1,1}},
+    active   = {bg = {1,0.6,  0}, fg = {1,1,1}}
+  }
   -- initialize by setting the currentScreen to the menu
-	currentScreen = menu
+  currentScreen = menu
 end
+
 
 function love.update(dt)
   -- * quit the game with escape!
   if love.keyboard.isDown('escape') then love.event.quit() end
-  -- control the multiplayer stuff
+    -- control the multiplayer stuff
   if Connected then
     client:update()
   end
+  -- create and increment duration of Popup menus
+  UpdatePopups(dt)
   -- create and increment duration of Alert buttons
   UpdateAlerts(dt)
+  -- get coordinates
+  x, y = love.graphics.getDimensions()
+  centerX = Round(x/2)
+  centerY = Round(y/2)
   -- update the current screen
   currentScreen.update(dt)
 end
 
 
 function love.draw()
+  
   -- draw alerts
-  AlertSuit.theme.color.normal.bg = {1,1,1}
-  AlertSuit.theme.color.normal.fg = {0,0,0}
+  suit.theme.color = {
+    normal   = {bg = { 1, 1, 1}, fg = {0,0,0}},
+    hovered  = {bg = { 0.19,0.6,0.73}, fg = {1,1,1}},
+    active   = {bg = {1,0.6,  0}, fg = {1,1,1}}
+  }
   AlertSuit:draw()
-  -- reset the theme
+
+  -- reset default theme
   suit.theme.color = {
     normal   = {bg = { 0.25, 0.25, 0.25}, fg = {0.73,0.73,0.73}},
-		hovered  = {bg = { 0.19,0.6,0.73}, fg = {1,1,1}},
-		active   = {bg = {1,0.6,  0}, fg = {1,1,1}}
-	}
+    hovered  = {bg = { 0.19,0.6,0.73}, fg = {1,1,1}},
+    active   = {bg = {1,0.6,  0}, fg = {1,1,1}}
+  }
+
   -- draw the current screen
-	currentScreen.draw()
+  suit.theme.color = AscendantTheme
+  currentScreen.draw()
+
+  -- draw popup menus
+  if ActivePopup then
+    -- background of popup
+    love.graphics.rectangle('fill', centerX-200, centerY-100, 400, 200)
+    -- border of popup
+    love.graphics.setColor(128,0,0)
+    love.graphics.rectangle('line', centerX-200, centerY-100, 400, 200)
+    -- suit theme
+    suit.theme.color = {
+      normal   = {bg = { 211/255, 211/255, 211/255}, fg = {0,0,0}},
+      hovered  = {bg = { 0.19,0.6,0.73}, fg = {1,1,1}},
+      active   = {bg = {1,0.6,  0}, fg = {1,1,1}}
+    }
+    PopupSuit:draw()
+    -- reset color
+    love.graphics.setColor(255,255,255)
+  end
 end

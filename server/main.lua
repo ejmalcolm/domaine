@@ -3,6 +3,8 @@ local inspect = require("inspect")
 
 UnitList = require("unitList")
 
+Gamestate = {}
+
 function CreateMasterLanes()
 	MasterLanes = {}
 
@@ -98,6 +100,29 @@ function findUnitIndex(unitToFind, tileToSearch)
   end
 end
 
+-- ! EVENT HANDLER
+
+Gamestate['DeadUnits'] = {}
+
+function handleEvent(eventName, data)
+  -- * handles various events that occur in the game
+
+  if eventName == 'unitDeath' then
+    local client, killer, kTile, victim, vTile = unpack(data)
+    
+    -- ! actually kill the unit
+    -- add to the list of dead units and update that for everyone
+    table.insert(Gamestate['DeadUnits'], victim)
+    server:sendToAll("updateVar", {'DeadUnits', Gamestate['DeadUnits']})
+    -- remove victim from tile
+    table.remove(vTile.content, findUnitIndex(victim, vTile))
+    -- alert the player
+    server:sendToPeer(getPeer(client), "createAlert",
+                      {killer.name..' killed '..victim.name, 5})
+  end
+
+end
+
 -- ! LOVE FUNCTIONS
 
 function love.load()
@@ -125,16 +150,17 @@ function love.load()
   end)
 
   -- used to keep track of how many unit there are
-UnitCount = 0
+  UnitCount = 0
 
-  -- ! MANAGING THE BOARD
+    -- ! MANAGING THE BOARD
 
   -- create the master copy of the lanes
   CreateMasterLanes()
 
--- {uid= 'Rand0', name='Rand', player=1, cost=2, attack=3, health=6}
+  -- {uid= 'Rand0', name='Rand', player=1, cost=2, attack=3, health=6}
 
   server:on("createUnitOnTile", function(data, client)
+    print(inspect(data))
     --used to create a unit from just a unit name, assigning it a UnitCount and its default stats
     print('Received createUnitOnTile')
     local unitName, tileRef = data[1], data[2]
@@ -193,10 +219,8 @@ UnitCount = 0
     end
 
     if newDefenderHP <= 0 then
-      -- * if the HP is zero or below, delete the unit
-      table.remove(defTile.content, dIndex)
-      server:sendToPeer(getPeer(client), "createAlert",
-      {attacker.name..' killed '..defender.name, 5})
+      -- * if the HP is zero or below, call the Death event
+      handleEvent('unitDeath', {client, attacker, attTile, defender, defTile})
     else
       -- * if the HP is above zero, change the HP stat
       print(defender.uid.. ' now has '..newDefenderHP..' health')
@@ -228,18 +252,20 @@ UnitCount = 0
 
   CurrentTurnTaker = 1
 
-  server:on("endMyTurn", function(client)
+  server:on("endMyTurn", function(data, client)
+    print('Received endMyTurn')
     -- * the signal that the client has completed their turn
     -- TODO: some internal turn management
     -- the second argument is the player ID (numbers for now)
     local newTurnTaker
-    if CurrentTurnTaker == 1 then newTurnTaker = 2
-    elseif CurrentTurnTaker == 2 then newTurnTaker = 1 end
+    if client:getIndex() == 1 then newTurnTaker = 2
+    elseif client:getIndex() == 2 then newTurnTaker = 1 end
     CurrentTurnTaker = newTurnTaker
     print('It is now '..newTurnTaker.."'s turn.")
     server:sendToAll("setPlayerTurn", newTurnTaker)
   end)
 
+  -- ! COMMUNICATE WITH CLIENT
 end
 
 function love.update(dt)

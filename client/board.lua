@@ -6,6 +6,23 @@ function isMyTurn()
   return CurrentTurnTaker == playerNumber
 end
 
+function TileSelection()
+  -- * creates a tile selection interface, with a button over each tile of the board
+  -- * when a button is clicked, a "TileSelected" event is sent
+  -- first, we generate a button in each tile
+  local lanes = board.lanes
+  for laneKey, lane in pairs(lanes) do
+    for tileKey, tile in pairs(lane) do
+      local tileX, tileY = AdjustCenter(tile.rect[1], 'X'), AdjustCenter(tile.rect[2], 'Y')
+      local selectButton = suit.Button(laneKey..tileKey, tileX+40, tileY+40, 20, 20)
+      if selectButton.hit then
+        TriggerEvent("TileSelected", laneKey..tileKey)
+        AskingForTile = false
+      end
+    end
+  end
+end
+
 function board.load()
 	board.lanes = {}
 	-- the structure is board.lanes.LANENAME.[TILE#]
@@ -35,15 +52,16 @@ function board.load()
 	EnemySuit = suit.new()
 	CPanelSuit = suit.new()
 	InfoPanelSuit = suit.new()
-	TurnCounterSuit = suit.new()
+  TurnCounterSuit = suit.new()
+  APanelSuit = suit.new()
 
 	-- image assets
-	UpArrow = love.graphics.newImage('UpArrow.png')
-	UpArrowHovered = love.graphics.newImage('UpArrowHovered.png')
-	DownArrow = love.graphics.newImage('DownArrow.png')
-	DownArrowHovered = love.graphics.newImage('DownArrowHovered.png')
-	AttackIcon = love.graphics.newImage('AttackIcon.png')
-	AttackIconHovered = love.graphics.newImage('AttackIconHovered.png')
+	UpArrow = love.graphics.newImage('images/UpArrow.png')
+	UpArrowHovered = love.graphics.newImage('images/UpArrowHovered.png')
+	DownArrow = love.graphics.newImage('images/DownArrow.png')
+	DownArrowHovered = love.graphics.newImage('images/DownArrowHovered.png')
+	AttackIcon = love.graphics.newImage('images/AttackIcon.png')
+	AttackIconHovered = love.graphics.newImage('images/AttackIconHovered.png')
 
   -- used to manage the turn system
   ActionsRemaining = {primary=1, secondary=1}
@@ -51,6 +69,12 @@ function board.load()
 end
 
 function board.update(dt)
+
+  -- * if we're currently asking for a tile, draw the TileSelection screen
+  if AskingForTile then
+    TileSelection()
+  end
+
 	-- ! everything that is done in each tile is managed in this loop
 	for laneKey, lane in pairs(board.lanes) do
 	-- for each tile in the lane
@@ -162,13 +186,13 @@ function board.update(dt)
 		end
   end
   
-	-- * create the turn counter
+	-- ! TURN COUNTER
 	TurnCounterSuit.layout:reset(0,0)
   TurnCounterSuit.layout:padding(1)
   TurnCounterSuit:Button('Turn X', TurnCounterSuit.layout:row(130,20))
   if isMyTurn() then
     local endTurnButton = TurnCounterSuit:Button('End your turn', TurnCounterSuit.layout:row())
-    if endTurnButton.hit then client:send("endMyTurn") end
+    if endTurnButton.hit then client:send("endMyTurn", {}) end
   else
     TurnCounterSuit:Button('Enemy turn', TurnCounterSuit.layout:row())
   end
@@ -185,12 +209,43 @@ function board.update(dt)
   if ActionsRemaining.primary ~= 1 then primaryText = primaryText..'s' end
   TurnCounterSuit:Button(primaryText, TurnCounterSuit.layout:up())
 
+  -- ! ASCENDANT ACTIONS
+  APanelSuit.layout:reset(centerX-150, centerY+230)
+  -- major action
+  local majorPower = APanelSuit:Button('Major Power', APanelSuit.layout:col(100,20))
+  if majorPower.hit then
+    -- * first, we create a popup window with the names of each unit that has died this game
+    local DeadUnits = Gamestate['DeadUnits'] or {}
+    local DeadNames = {}
+    -- get a table of all the names of the dead units
+    for k,v in pairs(DeadUnits) do table.insert(DeadNames, v.name) end
+    -- create the popup window with the DeadNames table as options
+    CreatePopup('Choose a unit to resurrect.', DeadNames, 20, 'UnitSelected')
+
+    -- * this is done by storing the rest of the function in WaitFor()
+    -- * so it only triggers once a unit is picked
+    WaitFor('UnitSelected', function(selectedUnit)
+      -- then, user has to pick a tile
+      AskingForTile = true
+      -- we wait for the tile selection and nest another layer deep! :)
+      WaitFor("TileSelected", function(selectedTile)
+        -- * finally, we cast createUnitOnTile using the arguments in MajorPowerData
+        client:send("createUnitOnTile", {selectedUnit, selectedTile})
+      end, {'triggerArgs'}) -- * end of the function that is called when a tile is selected
+    end, {'triggerArgs'}) -- * end of the function that is called when a unit is selected
+  end
+  -- minor power
+  local minorPower = APanelSuit:Button('Minor Power', APanelSuit.layout:col(100,20))
+  -- incarnate
+  local incarnate = APanelSuit:Button('Incarnate', APanelSuit.layout:col(100,20))
+
+
   -- * check if out of actions (end turn)
   -- only check if it's your turn to begin with
   if isMyTurn() then
-    if not(ActionsRemaining.primary) and not(ActionsRemaining.secondary) then
+    if (ActionsRemaining.primary == 0) and (ActionsRemaining.secondary == 0) then
       print('Player out of actions')
-      client:send("endMyTurn")
+      client:send("endMyTurn", {})
     end
   end
 
@@ -224,15 +279,11 @@ function board.draw()
 	love.graphics.setColor({186,186,186})
 	InfoPanelSuit:draw()
 	-- draw the turn counter
-	CPanelSuit.theme.color.normal.bg = {186/255,186/255,186/255}
-	CPanelSuit.theme.color.normal.fg = {0,0,0}
-	TurnCounterSuit:draw()
-	-- after all the theme fuckery everywhere else its good to reset the theme back to default
-	suit.theme.color = {
-		normal   = {bg = { 0.25, 0.25, 0.25}, fg = {0.73,0.73,0.73}},
-		hovered  = {bg = { 0.19,0.6,0.73}, fg = {1,1,1}},
-		active   = {bg = {1,0.6,  0}, fg = {1,1,1}}
-	}
+	TurnCounterSuit.theme.color.normal.bg = {186/255,186/255,186/255}
+	TurnCounterSuit.theme.color.normal.fg = {0,0,0}
+  TurnCounterSuit:draw()
+  -- draw the ascendant panel
+  APanelSuit:draw()
 end
 
 return board
