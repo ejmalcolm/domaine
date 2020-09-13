@@ -95,7 +95,8 @@ function board.update(dt)
 						-- set it to the ActiveUnit
 						print('The active unit is: '.. uid)
             ActiveUnit = unit
-            TriggerEvent('targetAlly')
+            local tileRef = laneKey..tileKey
+            TriggerEvent("targetAlly", {unit, tileRef})
 					end
 				else
 					-- enemy units, use enemy theme
@@ -107,8 +108,9 @@ function board.update(dt)
 						local tileRef = laneKey..tileKey
 						TriggerEvent('targetEnemy', {unit, tileRef})
 					end
-				end
-				-- if this unit is the active unit, activate the control panel and the info panel
+        end
+        
+				-- ! ACTIVE UNIT CONTROLS
 				if unit == ActiveUnit then
           CPanelSuit.layout:padding(2)
 					-- if the tile is in the red or yellow lanes (left or middle), make the cpanel and ipanel to the right
@@ -121,8 +123,9 @@ function board.update(dt)
 						InfoPanelSuit.layout:reset(AdjustCenter(tile.rect[1]-140, 'X'), AdjustCenter(tile.rect[2],'Y'))
 					end
           -- * we only create the parts of the panel that can be used
-          -- * control panel creation
-          -- overall, we only create the control panel if its our turn and if the activeUnit is allied
+
+          -- ! CONTROL PANEL
+          -- * overall, we only create the control panel if its our turn and if the activeUnit is allied
           if isMyTurn() and ActiveUnit.player == playerNumber then
           -- move buttons if we have secondary actions
             if ActionsRemaining.secondary >= 1 then
@@ -172,7 +175,9 @@ function board.update(dt)
               local useAbilityButton = CPanelSuit:Button('A', CPanelSuit.layout:row(20,20))
             end
           end
-          -- * infopanel creation
+
+          -- ! INFOPANEL
+          -- * we always draw the info panel for the selected unit
 					-- name of selected unit
 					InfoPanelSuit:Label(unit.name, InfoPanelSuit.layout:row(100,20))
 					-- atk and hp
@@ -180,7 +185,7 @@ function board.update(dt)
 					InfoPanelSuit:Label(statString, InfoPanelSuit.layout:row(100,20))
 					-- description of special
 					local shortSpecialDesc = unit.specTable.shortDesc
-					InfoPanelSuit:Label(shortSpecialDesc, InfoPanelSuit.layout:row(100,20))
+          InfoPanelSuit:Label(shortSpecialDesc, InfoPanelSuit.layout:row(100,20))
 				end
 			end
 		end
@@ -210,34 +215,21 @@ function board.update(dt)
   TurnCounterSuit:Button(primaryText, TurnCounterSuit.layout:up())
 
   -- ! ASCENDANT ACTIONS
-  APanelSuit.layout:reset(centerX-150, centerY+230)
-  -- major action
-  local majorPower = APanelSuit:Button('Major Power', APanelSuit.layout:col(100,20))
-  if majorPower.hit then
-    -- * first, we create a popup window with the names of each unit that has died this game
-    local DeadUnits = Gamestate['DeadUnits'] or {}
-    local DeadNames = {}
-    -- get a table of all the names of the dead units
-    for k,v in pairs(DeadUnits) do table.insert(DeadNames, v.name) end
-    -- create the popup window with the DeadNames table as options
-    CreatePopup('Choose a unit to resurrect.', DeadNames, 20, 'UnitSelected')
-
-    -- * this is done by storing the rest of the function in WaitFor()
-    -- * so it only triggers once a unit is picked
-    WaitFor('UnitSelected', function(selectedUnit)
-      -- then, user has to pick a tile
-      AskingForTile = true
-      -- we wait for the tile selection and nest another layer deep! :)
-      WaitFor("TileSelected", function(selectedTile)
-        -- * finally, we cast createUnitOnTile using the arguments in MajorPowerData
-        client:send("createUnitOnTile", {selectedUnit, selectedTile})
-      end, {'triggerArgs'}) -- * end of the function that is called when a tile is selected
-    end, {'triggerArgs'}) -- * end of the function that is called when a unit is selected
-  end
-  -- minor power
-  local minorPower = APanelSuit:Button('Minor Power', APanelSuit.layout:col(100,20))
-  -- incarnate
-  local incarnate = APanelSuit:Button('Incarnate', APanelSuit.layout:col(100,20))
+  -- TODO: if isMyTurn() then
+    APanelSuit.layout:reset(centerX-150, centerY+230)
+    -- major action
+    local majorPower = APanelSuit:Button('Major Power', APanelSuit.layout:col(100,20))
+    if majorPower.hit then
+      ChosenAscendant.majorFunc()
+    end
+    -- minor power
+    local minorPower = APanelSuit:Button('Minor Power', APanelSuit.layout:col(100,20))
+    if minorPower.hit then
+      ChosenAscendant.minorFunc()
+    end
+    -- incarnate
+    local incarnate = APanelSuit:Button('Incarnate', APanelSuit.layout:col(100,20))
+  -- TODO :end
 
 
   -- * check if out of actions (end turn)
@@ -276,7 +268,8 @@ function board.draw()
 	CPanelSuit.theme.color.hovered.bg = {231/255, 95/255, 98/255}
 	CPanelSuit:draw()
 	-- draw the info panel
-	love.graphics.setColor({186,186,186})
+  love.graphics.setColor({255,255,255})
+  TurnCounterSuit.theme.color.normal.fg = {186/255,186/255,186/255}
 	InfoPanelSuit:draw()
 	-- draw the turn counter
 	TurnCounterSuit.theme.color.normal.bg = {186/255,186/255,186/255}

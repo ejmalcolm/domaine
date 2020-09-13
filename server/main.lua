@@ -109,8 +109,29 @@ function handleEvent(eventName, data)
 
   if eventName == 'unitDeath' then
     local client, killer, kTile, victim, vTile = unpack(data)
-    
-    -- ! actually kill the unit
+
+    -- ! killer side-effects
+    -- SACRAMENT'S CHOSEN
+    if not Gamestate['Chosen'..killer.player] then
+      -- check if there actually is a chosen
+      goto noChosen
+    end
+    if killer.uid == Gamestate['Chosen'..killer.player]['currentChosen'] then
+      -- increment atk and hp
+      killer.attack = killer.attack + 1
+      killer.health = killer.health + 1
+      -- increment the # of unitsKilled by the Chosen by 1 for victory con
+      local newKilled = Gamestate['Chosen'..killer.player]['unitsKilled'] + 1
+      -- * note that when we update, we have to send the entire table over, not just the field we're editing
+      -- * this is because we can only update the whole 'Chosen' field, not a specific attribute of it
+      -- * coding limitations, but nbd
+      server:sendToAll("updateVar", {'Chosen'..killer.player, {currentChosen=killer.uid, unitsKilled=newKilled} })
+      -- "replace" the old killer with the new upgraded one
+      kTile.content[findUnitIndex(killer, kTile)] = killer
+    end
+    ::noChosen::
+
+    -- ! actually kill the victim
     -- add to the list of dead units and update that for everyone
     table.insert(Gamestate['DeadUnits'], victim)
     server:sendToAll("updateVar", {'DeadUnits', Gamestate['DeadUnits']})
@@ -160,7 +181,6 @@ function love.load()
   -- {uid= 'Rand0', name='Rand', player=1, cost=2, attack=3, health=6}
 
   server:on("createUnitOnTile", function(data, client)
-    print(inspect(data))
     --used to create a unit from just a unit name, assigning it a UnitCount and its default stats
     print('Received createUnitOnTile')
     local unitName, tileRef = data[1], data[2]
@@ -248,6 +268,17 @@ function love.load()
     server:sendToAll("updateLanes", MasterLanes)
   end)
 
+  server:on("modifyUnitTable", function(data, client)
+    print('Received modifyUnitTable')
+    -- * used to modify a field of a unit, e.g. health, atk, name
+    local unit, tileRef, field, newValue = unpack(data)
+    -- find the unit in place, set the new value
+    local tile = tileRefToTile(tileRef)
+    local index = findUnitIndex(unit, tile)
+    tile.content[index][field] = newValue
+    server:sendToAll("updateLanes", MasterLanes)
+  end)
+
   -- ! TURN SYSTEM
 
   CurrentTurnTaker = 1
@@ -266,6 +297,12 @@ function love.load()
   end)
 
   -- ! COMMUNICATE WITH CLIENT
+
+  server:on("updateVar", function(data)
+    local varName, varValue = data[1], data[2]
+    Gamestate[varName] = varValue
+    end)
+
 end
 
 function love.update(dt)

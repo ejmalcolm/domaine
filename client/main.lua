@@ -4,6 +4,7 @@ buildArmy = require("buildArmy")
 unitPlacement = require("unitPlacement")
 connectScreen = require("ConnectScreen")
 chooseAscendant = require("chooseAscendant")
+ascendantList = require("ascendantList")
 
 suit = require("suit")
 inspect = require("inspect")
@@ -181,7 +182,7 @@ function connectToHost(ip)
     Ready = true
   end)
 
-  -- ! SERVER-TO-USER COMMUNICATION
+  -- ! SERVER-TO-CLIENT COMMUNICATION
 
   -- allows the server to create client-side alerts
   client:on("createAlert", function(data)
@@ -192,8 +193,9 @@ function connectToHost(ip)
 
   Gamestate = {}
   client:on("updateVar", function(data)
-  local varName, varValue = data[1], data[2]
-  Gamestate[varName] = varValue
+    local varName, varValue = data[1], data[2]
+    print('gamestate var updated', varName, varValue)
+    Gamestate[varName] = varValue
   end)
 
   -- ! BOARD FUNCTIONS
