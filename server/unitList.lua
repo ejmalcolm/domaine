@@ -1,82 +1,70 @@
 local unitList = {}
 
-unitList["Blood Mage"] = {2, 2, 6,
-special={shortDesc='ACTIVE: Inflict X damage to both a friendly and enemy Unit.', fullDesc=1 } }
+-- ! TRAVELLERS
 
-unitList["Zangief"] = {2, 3, 7,
-special={shortDesc='ACTIVE: Move to another Tile with enemy Units in it.', fullDesc=1 } }
+unitList["The Envoy"] = {1, 1, 2,
+special={shortDesc='The Envoy moves to any Tile.',
+         fullDesc='ACTIVE: Target any tile. The Envoy moves to that Tile.',
+         specRef='envoySpec',
+         tags={} } }
 
-unitList["Rand"] = {2, 3, 6,
-special={shortDesc='Rand is immune to all other specials.', fullDesc=1 } }
+unitList["The Siren"] = {1, 1, 2,
+special={shortDesc='Move an enemy Unit in an adjacent Tile to this tile.',
+         fullDesc='ACTIVE: Target an enemy Unit in an adjacent tile. Move that unit to the Siren’s Tile.',
+         specRef = 'sirenSpec',
+         tags={} } }
 
-unitList["Lancer"] = {2, 3, 6,
-special={shortDesc='Attacks splash 1 damage to all other enemies in the Tile.', fullDesc=1 } }
+unitList["The Router"] = {1, 1, 2,
+special={shortDesc='Move a friendly Unit in this Tile to any Tile.',
+        fullDesc='ACTIVE: Target a friendly Unit in the same tile. Move that Unit to any Tile.',
+        specRef = 'routerSpec',
+        tags = {} } }
 
-unitList['Knight'] = {1, 2, 4,
-special={shortDesc='On entering a Tile, make a free Attack.', fullDesc=1 } }
+unitList["The Chain"] = {1, 1, 2,
+special={shortDesc='Attach to target Unit. The Chain moves with the attached Unit.',
+         fullDesc='ACTIVE: Target a Unit in the same tile. Whenever that Unit moves, the Chain moves with it. This effect can only be active on one unit at a time.',
+         specRef = 'chainSpec',
+         tags = {} } }
 
-unitList['Reaper'] = {1, 2, 4,
-special={shortDesc='On entering a Tile, kill any enemy at 1HP.', fullDesc=1 } }
+unitList['The Shifter'] = {1, 1, 2,
+special={shortDesc= 'Switch positions with a target Unit.',
+         fullDesc= 'ACTIVE: Target a Unit. Switch the position of the Shifter and that Unit.',
+         specRef = 'shifterSpec',
+         tags = {} } }
 
+-- ! STRIKERS
 
-unitList['Brawler'] = {1, 2, 4,
-special={shortDesc=2, fullDesc=1 } }
+unitList["The Berserker"] = {1, 1, 2,
+special={shortDesc='When the Berserker kills a Unit, it can immediately attack again.',
+         fullDesc='When the Berserker kills a Unit, it can immediately attack again.',
+         specRef='berserkerSpec',
+         tags={} } }
+unitList["The Berserker"]["special"]["tags"]['berserker|RepeatAttack'] = true
 
-unitList['Chuck'] = {1, 2, 4,
-special={shortDesc=2, fullDesc=1 } }
+unitList["The Hunter"] = {1, 1, 2,
+special={shortDesc='Mark a Unit in the same Tile. The Hunter can always attack that Unit.',
+         fullDesc='ACTIVE: Mark a Unit in the same Tile. The Hunter can always attack that Unit',
+         specRef='hunterSpec',
+         tags={} } }
 
-unitList['Big Boy'] = {1, 2, 3,
-special={shortDesc=2, fullDesc=1 } }
+unitList["The Sniper"] = {1, 1, 2,
+special={shortDesc='Attack a Unit in a horizontally adjacent Tile.',
+         fullDesc='ACTIVE: Attack a Unit in a horizontally adjacent Tile.',
+         specRef='sniperSpec',
+         tags={} } }
 
+unitList["The Knight"] = {1, 1, 2,
+special={shortDesc='The Knight deals one extra damage for each time it has moved this turn.',
+         fullDesc='The Knight deals one extra damage for each time it has moved this turn.',
+         specRef='knightSpec',
+         tags={} } }
+unitList["The Knight"]["special"]["tags"]['knight|MomentumGain'] = true
 
-unitList['Hunter'] = {1, 2, 4,
-special={shortDesc=2, fullDesc=1 } }
+unitList["The Nullity"] = {1, 1, 2,
+special={shortDesc='Kill a Unit in the same Tile, then remove the Nullity from the game for turns equal to the HP of that Unit.',
+         fullDesc='ACTIVE: Kill a Unit in the same Tile. The Nullity is removed from the game for X turns, where X is the amount of HP target Unit has.',
+         specRef='nullitySpec',
+         tags={} } }
 
-unitList['Archer'] = {1, 2, 3,
-special={shortDesc=2, fullDesc=1 } }
-
-
-unitList['Tunneler'] = {1, 2, 4,
-special={shortDesc=2, fullDesc=1 } }
-
-unitList['Kidnapper'] = {1, 2, 4,
-special={shortDesc=2, fullDesc=1 } }
-
-unitList['Sapper'] = {1, 2, 4,
-special={shortDesc=2, fullDesc=1 } }
-
-
-unitList['Yorick'] = {2, 2, 7,
-special={shortDesc=2, fullDesc=1 } }
-
-unitList['Clone'] = {1, 2, 4,
-special={shortDesc=2, fullDesc=1 } }
-
-unitList['Witch Doctor'] = {1, 1, 4,
-special={shortDesc=2, fullDesc=1 } }
-
-unitList['Signaller'] = {1, 2, 4,
-special={shortDesc=2, fullDesc=1 } }
-
-
-unitList['Jester'] = {2, 2, 6,
-special={shortDesc=2, fullDesc=1 } }
-
-unitList['The Stupid'] = {2, 3, 5,
-special={shortDesc=2, fullDesc=1 } }
-
-unitList['Warden'] = {1, 2, 4,
-special={shortDesc=2, fullDesc=1 } }
-
-unitList['Heathen'] = {1, 2, 4,
-special={shortDesc=2, fullDesc=1 } }
-
-
-unitList['Necromancer'] = {1, 1, 4,
-special={shortDesc=2, fullDesc=1 } }
-
-unitList['Catapult'] = {1, 1, 5,
-special={shortDesc=2, fullDesc=1 } }
-
-
+         
 return unitList

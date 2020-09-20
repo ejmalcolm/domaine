@@ -1,7 +1,5 @@
 local unitPlacement = {}
 
-local suit = require("suit")
-
 function unitPlacement.setArmy(armyList)
     -- sets the army of the player to be the given armyList
 	unitPlacement.armyList = armyList

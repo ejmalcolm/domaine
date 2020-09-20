@@ -1,9 +1,8 @@
 local chooseAscendant = {}
-local ascendantList = require("ascendantList")
 
 function chooseAscendant.load()
   -- default ascendant
-  SelectedIndex = 1
+  AscendantIndex = 1
 
   AscendantSplashes = {}
   for _,v in pairs(ascendantList) do
@@ -19,7 +18,7 @@ end
 
 function chooseAscendant.update(dt)
 
-  ChosenAscendant = ascendantList[SelectedIndex]
+  ChosenAscendant = ascendantList[AscendantIndex]
 
   -- ! SPLASH MANAGEMENT
 
@@ -36,22 +35,20 @@ function chooseAscendant.update(dt)
   -- previous Ascendant button
   local prevAscendant = suit.Button('<', suit.layout:col(20,20))
   if prevAscendant.hit then
-    SelectedIndex = ((SelectedIndex-1) % #ascendantList)
-    if SelectedIndex == 0 then SelectedIndex=5 end
+    AscendantIndex = ((AscendantIndex-1) % #ascendantList)
+    if AscendantIndex == 0 then AscendantIndex=5 end
   end
 
   -- button to select an Ascendant
   local selectButton = suit.Button(ChosenAscendant.name, suit.layout:col(150,20))
   if selectButton.hit then
-    print(inspect(ChosenAscendant))
-    love.audio.stop()
-    love.audio.play(AscendantSounds[ChosenAscendant.name]['bgm'])
+    Gamestate['myAscendant'] = AscendantIndex
   end
 
   -- next Ascendant button
   local nextAscendant = suit.Button('>', suit.layout:col(20,20))
   if nextAscendant.hit then
-    SelectedIndex = (SelectedIndex + 1) % #ascendantList+1
+    AscendantIndex = (AscendantIndex + 1) % #ascendantList+1
   end
 
   -- -- ! DISPLAY ABILITIES
@@ -84,8 +81,10 @@ function chooseAscendant.update(dt)
 
   suit.layout:reset(centerX-75,y-40)
   suit.layout:padding(5)
-  if suit.Button('Finalize Selection', suit.layout:row(150,20)).hit then
-    changeScreen(buildArmy)
+  if Gamestate['myAscendant'] then
+    if suit.Button('Finalize Selection', suit.layout:row(150,20)).hit then
+      changeScreen(buildArmy)
+    end
   end
 
 end

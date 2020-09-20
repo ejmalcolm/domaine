@@ -1,9 +1,7 @@
 local buildArmy = {}
 
-local suit = require("suit")
-
 local armyList = {}
-local unitList = require('unitList')
+
 --init currentArmyCost so it can be used in the armyList
 local currentArmyCost = 0
 
@@ -37,26 +35,41 @@ function buildArmy.update(dt)
 
   end
 
-  --add units to armyList when their button is hit
+  -- when a button is hovered, display an info panel
   for k,v in pairs(unitList) do
-      if suit.isHit(k) then
-          -- make sure there's room in the budgest
-          if currentArmyCost + v[1] <= 7 then
-              table.insert(armyList, k)
-          end
-      end
+    if suit.isHovered(k) then
+      suit.layout:reset(centerX+200, centerY+10)
+      -- name
+      suit.Label(k, suit.layout:row(200,20))
+      -- stats
+      local cst, atk, hp = v[1], v[2], v[3]
+      local statstring = string.format('Cost: %i | ATK: %i | HP: %i', cst, atk, hp)
+      suit.Label(statstring, suit.layout:row(200,20))
+      -- special
+      suit.Label(v.special['fullDesc'], suit.layout:row(200,20))
+   end
   end
 
-  --create the armyList labels and buttons
+  -- add units to armyList when their button is hit
+  for k,v in pairs(unitList) do
+    if suit.isHit(k) then
+        -- make sure there's room in the budget
+        if currentArmyCost + v[1] <= 5 then
+            table.insert(armyList, k)
+        end
+    end
+  end
+
+  -- create the armyList labels and buttons
   suit.layout:reset(centerX-50, centerY+10)
   suit.Label('YOUR ARMY', suit.layout:row(100, 20))
-  local budgetText = string.format('Budget: %d/7', currentArmyCost)
+  local budgetText = string.format('Budget: %d/5', currentArmyCost)
   suit.Label(budgetText, suit.layout:row(100,20))
   for k, v in pairs(armyList) do
       suit.Button(v, {id = v..tostring(k)}, suit.layout:row(100, 20))
   end
 
-  --remove the unit from the armyList when clicked
+  -- remove the unit from the armyList when clicked
   for k, v in pairs(armyList) do
       if suit.isHit(v..tostring(k)) then
           table.remove(armyList, k)

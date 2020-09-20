@@ -1,14 +1,12 @@
 local board = {}
 
-local suit = require("suit")
-
 function isMyTurn()
   return CurrentTurnTaker == playerNumber
 end
 
 function TileSelection()
   -- * creates a tile selection interface, with a button over each tile of the board
-  -- * when a button is clicked, a "TileSelected" event is sent
+  -- * when a button is clicked, a "tileSelected" event is sent
   -- first, we generate a button in each tile
   local lanes = board.lanes
   for laneKey, lane in pairs(lanes) do
@@ -16,7 +14,7 @@ function TileSelection()
       local tileX, tileY = AdjustCenter(tile.rect[1], 'X'), AdjustCenter(tile.rect[2], 'Y')
       local selectButton = suit.Button(laneKey..tileKey, tileX+40, tileY+40, 20, 20)
       if selectButton.hit then
-        TriggerEvent("TileSelected", laneKey..tileKey)
+        TriggerEvent("tileSelected", laneKey..tileKey)
         AskingForTile = false
       end
     end
@@ -24,6 +22,8 @@ function TileSelection()
 end
 
 function board.load()
+
+  -- ! create the tile objects
 	board.lanes = {}
 	-- the structure is board.lanes.LANENAME.[TILE#]
 	-- where LANENAME = r, y, g
@@ -47,7 +47,7 @@ function board.load()
 		end
 	end
 
-	-- construct suit themes
+	-- ! construct suit themes
 	AlliedSuit = suit.new()
 	EnemySuit = suit.new()
 	CPanelSuit = suit.new()
@@ -55,7 +55,8 @@ function board.load()
   TurnCounterSuit = suit.new()
   APanelSuit = suit.new()
 
-	-- image assets
+  -- ! image assets
+  Border = love.graphics.newImage('images/gameBorder.png')
 	UpArrow = love.graphics.newImage('images/UpArrow.png')
 	UpArrowHovered = love.graphics.newImage('images/UpArrowHovered.png')
 	DownArrow = love.graphics.newImage('images/DownArrow.png')
@@ -63,8 +64,14 @@ function board.load()
 	AttackIcon = love.graphics.newImage('images/AttackIcon.png')
 	AttackIconHovered = love.graphics.newImage('images/AttackIconHovered.png')
 
-  -- used to manage the turn system
-  ActionsRemaining = {primary=1, secondary=1}
+  -- ! used to manage the turn system
+  ActionsRemaining = {primary=1, secondary=2}
+
+  -- ! set the ascendant of this player in the server
+  Gamestate['Ascendant'..playerNumber] = Gamestate['myAscendant']
+  Gamestate['HasMajorPower'] = true
+  Gamestate['HasMinorPower'] = true
+  client:send('updateVar', {'Ascendant'..playerNumber, AscendantIndex})
 
 end
 
@@ -95,8 +102,8 @@ function board.update(dt)
 						-- set it to the ActiveUnit
 						print('The active unit is: '.. uid)
             ActiveUnit = unit
-            local tileRef = laneKey..tileKey
-            TriggerEvent("targetAlly", {unit, tileRef})
+            TriggerEvent("targetAlly", unit)
+            TriggerEvent("targetUnit", unit)
 					end
 				else
 					-- enemy units, use enemy theme
@@ -105,8 +112,8 @@ function board.update(dt)
           if enemyButton.hit then
             print('The active unit is: '..uid)
             ActiveUnit = unit
-						local tileRef = laneKey..tileKey
-						TriggerEvent('targetEnemy', {unit, tileRef})
+            TriggerEvent("targetEnemy", unit)
+            TriggerEvent("targetUnit", unit)
 					end
         end
         
@@ -127,9 +134,9 @@ function board.update(dt)
           -- ! CONTROL PANEL
           -- * overall, we only create the control panel if its our turn and if the activeUnit is allied
           if isMyTurn() and ActiveUnit.player == playerNumber then
-          -- move buttons if we have secondary actions
+          -- ! move buttons if we have secondary actions
             if ActionsRemaining.secondary >= 1 then
-              -- ! repeated code here, could possibly be optimized
+              -- ? repeated code here, could possibly be optimized
               -- move up/down arrows
               if tileKey ~= 1 then
                 -- if not in the "upmost" tile, have a down arrow
@@ -142,6 +149,8 @@ function board.update(dt)
                   local newTileRef = laneKey..newTileKey
                   -- then, send the move message to the server
                   client:send("unitMove", {unit, tileRef, newTileRef})
+                  -- use a secondary action
+                  client:send("useAction", {'secondary', unit, "unitMove"})
                 end
               end
               if tileKey ~= 3 then
@@ -155,10 +164,22 @@ function board.update(dt)
                   local newTileRef = laneKey..newTileKey
                   -- then, send the move message to the server
                   client:send("unitMove", {unit, tileRef, newTileRef})
+                  -- use a secondary action
+                  client:send("useAction", {'secondary', unit, "unitMove"})
                 end
               end
+              -- empty label for spacing
+              CPanelSuit:Label('', CPanelSuit.layout:row(3,3))
+              -- use ability button
+              local useAbilityButton = CPanelSuit:Button('A', CPanelSuit.layout:row(20,20))
+              if useAbilityButton.hit then
+                local specFunc = unitSpecs[unit.specTable.specRef]
+                specFunc(unit)
+              end
+              -- empty label for spacing
+              CPanelSuit:Label('', CPanelSuit.layout:row(3,3))
             end
-            -- attack/ability button if we have primary actions
+            -- ! attack/ability button if we have primary actions
             if ActionsRemaining.primary >= 1 then
               -- attack Button with logic
               local attackButton = CPanelSuit:ImageButton(AttackIcon, {hovered=AttackIconHovered}, CPanelSuit.layout:row(20,20))
@@ -166,13 +187,8 @@ function board.update(dt)
                 -- create an alert asking for an attack target
                 CreateAlert('Select an attack target.', 5)
                 -- queue up an attack  on a enemyTarget
-                local tileRef = laneKey..tileKey
-                WaitFor('targetEnemy', client.send, {client, "unitAttack", {unit, tileRef, 'triggerArgs'} })
+                WaitFor("targetEnemy", client.send, {client, "unitAttack", {unit, 'triggerArgs'} })
               end
-              -- empty label for spacing
-              CPanelSuit:Label('', CPanelSuit.layout:row(3,3))
-              -- use ability button
-              local useAbilityButton = CPanelSuit:Button('A', CPanelSuit.layout:row(20,20))
             end
           end
 
@@ -215,22 +231,38 @@ function board.update(dt)
   TurnCounterSuit:Button(primaryText, TurnCounterSuit.layout:up())
 
   -- ! ASCENDANT ACTIONS
-  -- TODO: if isMyTurn() then
+  if isMyTurn() then
     APanelSuit.layout:reset(centerX-150, centerY+230)
     -- major action
-    local majorPower = APanelSuit:Button('Major Power', APanelSuit.layout:col(100,20))
+    local majorPower = {}
+    if Gamestate['HasMajorPower'] then
+      majorPower = APanelSuit:Button('Major Power', APanelSuit.layout:col(100,20))
+    end
     if majorPower.hit then
-      ChosenAscendant.majorFunc()
+      local ascIndex = Gamestate['Ascendant'..playerNumber]
+      local asc = ascendantList[ascIndex]
+      asc.majorFunc()
     end
     -- minor power
-    local minorPower = APanelSuit:Button('Minor Power', APanelSuit.layout:col(100,20))
-    if minorPower.hit then
-      ChosenAscendant.minorFunc()
+    local minorPower = {}
+    if Gamestate['HasMinorPower'] then
+      minorPower = APanelSuit:Button('Minor Power', APanelSuit.layout:col(100,20))
+    end
+      if minorPower.hit then
+      local ascIndex = Gamestate['Ascendant'..playerNumber]
+      local asc = ascendantList[ascIndex]
+      asc.minorFunc()
     end
     -- incarnate
     local incarnate = APanelSuit:Button('Incarnate', APanelSuit.layout:col(100,20))
-  -- TODO :end
-
+    -- info button
+    local infoButton = APanelSuit:Button('?', APanelSuit.layout:col(20,20))
+    if infoButton.hit then
+      local ascIndex = Gamestate['Ascendant'..playerNumber]
+      local asc = ascendantList[ascIndex]
+      CreatePopupDisplay('Ascendant Powers', {'Victory Condition', 'Major', 'Minor', 'Incarnate'}, {asc.victoryText, asc.majorText, asc.minorText, 'coming soon! doesn\'t work right now'})
+    end
+  end
 
   -- * check if out of actions (end turn)
   -- only check if it's your turn to begin with
@@ -244,39 +276,53 @@ function board.update(dt)
 end
 
 function board.draw()
+  -- draw the game border
+  love.graphics.draw(Border,centerX-480,centerY-270)
+  -- draw the textured background
+  love.graphics.setBackgroundColor(10/255,10/255,10/255)
+
+  -- ! draw each individual tile
 	-- first, get each lane
 	for k, lane in pairs(board.lanes) do
 		-- then, get each tile in that lane
 		for _, tile in pairs(lane) do
       love.graphics.setColor(tile.color)
       local x, y, w, h = unpack(tile.rect)
+      -- draw each tile
       love.graphics.rectangle('line', AdjustCenter(x, 'X'), AdjustCenter(y, 'Y'),w,h)
 		end
-	end
-	-- draw board tiles
-	suit.draw()
+  end
+  
 	-- set the allied theme, then draw allied units
 	AlliedSuit.theme.color.normal.bg = {8/255,63/255,33/255}
-	AlliedSuit:draw()
+  AlliedSuit:draw()
+  
 	-- set the enemy theme, then draw enemy 
 	EnemySuit.theme.color.normal.bg = {128/255,0/255,0/255}
-	EnemySuit:draw()
+  EnemySuit:draw()
+  
 	-- draw the control panel
-	-- this is the default gray/silver color
+  -- this is the default gray/silver color
 	love.graphics.setColor({186,186,186})
 	CPanelSuit.theme.color.normal.bg = {0.25, 0.25, 0.25}
 	CPanelSuit.theme.color.hovered.bg = {231/255, 95/255, 98/255}
-	CPanelSuit:draw()
+  CPanelSuit:draw()
+  
 	-- draw the info panel
   love.graphics.setColor({255,255,255})
   TurnCounterSuit.theme.color.normal.fg = {186/255,186/255,186/255}
-	InfoPanelSuit:draw()
+  InfoPanelSuit:draw()
+  
 	-- draw the turn counter
 	TurnCounterSuit.theme.color.normal.bg = {186/255,186/255,186/255}
 	TurnCounterSuit.theme.color.normal.fg = {0,0,0}
   TurnCounterSuit:draw()
+
   -- draw the ascendant panel
   APanelSuit:draw()
+
+  -- draw selection options, if present
+	suit.draw()
 end
 
 return board

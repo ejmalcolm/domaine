@@ -1,7 +1,5 @@
 ConnectScreen = {}
 
-local suit = require("suit")
-
 -- forward keyboard events for the ipInput field
 function love.textinput(t)
     suit.textinput(t)
@@ -32,7 +30,6 @@ function ConnectScreen.update(dt)
   -- this has to be outside the connectButton logic because else changeScreen happens
   -- before the server and client are acutally revved up/ready to go
   if Ready then
-      board.load()
       -- one at a time, add each unit from unitPlacement into the matching starting Tile
       for _, tile in pairs({'r', 'y', 'g'}) do
           for _, unit in pairs(unitPlacement.pRects[tile].content) do

@@ -4,11 +4,15 @@ buildArmy = require("buildArmy")
 unitPlacement = require("unitPlacement")
 connectScreen = require("ConnectScreen")
 chooseAscendant = require("chooseAscendant")
-ascendantList = require("ascendantList")
 
-suit = require("suit")
-inspect = require("inspect")
-local sock = require("sock")
+unitList = require("references/unitList")
+unitSpecs = require("references/unitSpecs")
+ascendantList = require("references/ascendantList")
+
+suit = require("modules/suit")
+inspect = require("modules/inspect")
+bitser = require("modules/bitser")
+local sock = require("modules/sock")
 
 local currentScreen
 
@@ -43,7 +47,7 @@ function UpdateAlerts(dt)
   for alertText, timeRemaining in pairs(ActiveAlerts) do
     ActiveAlerts[alertText] = timeRemaining-dt
     if ActiveAlerts[alertText] > 0 then
-      local alert = AlertSuit:Button(alertText, center-75, 10, 150, 20)
+      local alert = AlertSuit:Button(alertText, center-150, 10, 300, 20)
       if alert.hit then
         ActiveAlerts[alertText] = nil
       end
@@ -100,6 +104,51 @@ function UpdatePopups(dt)
   end
 end
 
+function CreatePopupDisplay(title, subtitles, text)
+  -- * creates a info menu, with headings {subtitles}, each with text underneath them in the {text}
+  -- the first "1" is the starting index, aka which subtitle/text pair to start at
+  -- the final true value is just used to control whether the display is active or not
+  PopupDisplays[title] = {1, subtitles, text, true}
+end
+
+function UpdatePopupDisplays(dt)
+  -- * updates a popup menu over the center of the screen with a bunch of options
+  for title, data in pairs(PopupDisplays) do
+    if data[4] then
+      ActivePopupDisplay = true
+      -- draw the title
+      PopupDisplaySuit.layout:reset(centerX-100, centerY-100)
+      PopupDisplaySuit:Label(title, PopupDisplaySuit.layout:col(200,20))
+      -- take in account the border
+      PopupDisplaySuit.layout:reset(centerX-150, centerY-59)
+      PopupDisplaySuit.layout:padding(1)
+      -- ! cancel button in the top right
+      PopupDisplaySuit.layout:reset(centerX+179, centerY-99)
+      local cancelButton = PopupDisplaySuit:Button('X', PopupDisplaySuit.layout:row(20,20))
+      if cancelButton.hit then PopupDisplays[title][4] = false return end
+      -- ! display information
+      local activeIndex = data[1]
+      local subtitlesTable = data[2]
+      local textTable = data[3]
+      local subtitle = subtitlesTable[activeIndex]
+      local text = textTable[activeIndex]
+      -- first, the title and the "change selection" buttons
+      PopupDisplaySuit.layout:reset(centerX-65, centerY-60)
+      local backButton = PopupDisplaySuit:Button('<', PopupDisplaySuit.layout:col(20,20))
+      PopupDisplaySuit:Label(subtitle, PopupDisplaySuit.layout:col(90, 20))
+      local nextButton = PopupDisplaySuit:Button('>', PopupDisplaySuit.layout:col(20,20))
+      if backButton.hit then data[1] = math.max((data[1]-1),1) end
+      if nextButton.hit then data[1] = math.min(data[1]+1, #subtitlesTable) end
+      -- then, the info
+      PopupDisplaySuit.layout:reset(centerX-200, centerY-75)
+      PopupDisplaySuit:Label(text, PopupDisplaySuit.layout:row(400, 170))
+    else
+      ActivePopupDisplay = false
+      PopupMenus[title] = nil
+    end
+  end
+end
+
 function WaitFor(event, func, args)
   -- this is essentially a client-side queueing function
   -- takes an event, a certain string e.g. "targetEnemy", and a function object
@@ -141,11 +190,20 @@ function TriggerEvent(event, triggerArgs)
             for _,p in pairs(args[k]) do table.insert(newArgs, p) end
             args[k] = newArgs
             -- if its a subtable, then we unpack it and add it to overtable
-            for k3, triggerArg in pairs(triggerArgs) do
-              -- the (k3-1) ensures that arguments are added in their proper order
-              table.insert(args[k], k2+(k3-1), triggerArg)
+            -- * unless its the lone argument, and that argument is a table
+            -- * for example: if only a unit is sent
+            -- * a unit is a table, but we dont want to cycle through it
+            -- we filter those cases out by making sure the keys are ints
+            -- ? this might be a bad way of doing it, but eh
+            if triggerArgs[1] then
+              for k3, triggerArg in pairs(triggerArgs) do
+                -- the (k3-1) ensures that arguments are added in their proper order
+                table.insert(args[k], k2+(k3-1), triggerArg)
+              end
+            else
+              -- sole argument that happens to be a table
+              table.insert(args[k], triggerArgs)
             end
-            print(inspect(args))
           end
         end
       end
@@ -191,11 +249,16 @@ function connectToHost(ip)
     CreateAlert(alertText, duration)
   end)
 
-  Gamestate = {}
   client:on("updateVar", function(data)
     local varName, varValue = data[1], data[2]
     print('gamestate var updated', varName, varValue)
     Gamestate[varName] = varValue
+  end)
+
+  client:on("youWin", function(data)
+    print('oh you win!')
+    CreateAlert('You win!!!!', 10)
+    changeScreen(menu)
   end)
 
   -- ! BOARD FUNCTIONS
@@ -217,8 +280,8 @@ function connectToHost(ip)
   client:on("setPlayerTurn", function(playerN)
     print('Player '..CurrentTurnTaker..'\'s turn ended.')
     print('It is now Player'..playerN..'\'s turn')
-    -- if it's now your turn, reset available actions
-    ActionsRemaining.primary, ActionsRemaining.secondary = 1,1
+    -- reset available actions for both players
+    ActionsRemaining.primary, ActionsRemaining.secondary = 1,2
     CurrentTurnTaker = playerN
   end)
 
@@ -240,6 +303,8 @@ end
 
 
 function love.load()
+  -- used to manage game data
+  Gamestate = {}
   -- used as a queueing system for WaitFor() events
   WaitingFor = {}
   -- used to draw temporary alerts
@@ -248,10 +313,13 @@ function love.load()
   -- used for popup menus
   PopupSuit = suit.new()
   PopupMenus = {}
+  -- used for infopanels
+  PopupDisplaySuit = suit.new()
+  PopupDisplays = {}
   -- basic settings
   love.keyboard.setKeyRepeat(true)
   love.window.setTitle('Domaine')
-  love.window.setMode(750, 500, {resizable=true})
+  love.window.setMode(960, 540, {resizable=true})
   -- audio assets (expensive to create many times)
   AudioSources = {}
   AudioSources["alertSound"] = love.audio.newSource('sounds/alertSoundDown.wav', 'static')
@@ -283,6 +351,8 @@ function love.update(dt)
   UpdatePopups(dt)
   -- create and increment duration of Alert buttons
   UpdateAlerts(dt)
+  -- create and increment duration of Info panels
+  UpdatePopupDisplays(dt)
   -- get coordinates
   x, y = love.graphics.getDimensions()
   centerX = Round(x/2)
@@ -330,4 +400,22 @@ function love.draw()
     -- reset color
     love.graphics.setColor(255,255,255)
   end
+
+  if ActivePopupDisplay then
+    -- background of popup
+    love.graphics.rectangle('fill', centerX-200, centerY-100, 400, 200)
+    -- border of popup
+    love.graphics.setColor(128,0,0)
+    love.graphics.rectangle('line', centerX-200, centerY-100, 400, 200)
+    -- suit theme
+    suit.theme.color = {
+      normal   = {bg = {.9,.9,.9}, fg = {0,0,0}},
+      hovered  = {bg = { 0.19,0.6,0.73}, fg = {1,1,1}},
+      active   = {bg = {1,0.6,0}, fg = {1,1,1}}
+    }
+    PopupDisplaySuit:draw()
+    -- reset color
+    love.graphics.setColor(255,255,255)
+  end
+
 end

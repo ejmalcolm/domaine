@@ -1,7 +1,5 @@
 local menu = {}
 
-local suit = require("suit")
-
 function menu.update(dt)
   -- button to launch into unitPlacement
   -- center the button
@@ -9,8 +7,8 @@ function menu.update(dt)
   suit.layout:reset(Round(x/2-150), Round(y/2-15))
   local startButton = suit.Button("Start Game", suit.layout:row(300, 30))
   if startButton.hit then
-      chooseAscendant.load()
-      changeScreen(chooseAscendant)
+    chooseAscendant.load()
+    changeScreen(chooseAscendant)
   end
 end
 

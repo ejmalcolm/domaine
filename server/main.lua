@@ -2,6 +2,7 @@ local sock = require "sock"
 local inspect = require("inspect")
 
 UnitList = require("unitList")
+AscendantList = require("ascendantList")
 
 Gamestate = {}
 
@@ -76,7 +77,7 @@ function tileRefToTile(tileRef, client)
   local laneCode = tileRef:sub(1,1)
   local tileCode = translator[tileRef:sub(2,2)]
   local tile = MasterLanes[laneCode][tileCode]
-  return tile   
+  return tile, laneCode..tileCode
 end
 
 function distanceBetweenTiles(tile1, tile2)
@@ -98,6 +99,24 @@ function findUnitIndex(unitToFind, tileToSearch)
       return index
     end
   end
+end
+
+function FindUnitByID(uidToFind)
+  -- TODO: optimize, only run tiles that have units in them?
+  for laneKey, lane in pairs(MasterLanes) do
+    for tileKey, tile in pairs(lane) do
+      -- optimization: if a tile has nothing in it, skip it
+      if not tile.content then goto nextTile end
+
+      for unitKey, unit in pairs(tile.content) do
+        if unit.uid == uidToFind then return unit end
+      end
+
+      ::nextTile::
+    end
+  end
+  -- if no unit is found, return false
+  return false
 end
 
 -- ! EVENT HANDLER
@@ -122,6 +141,7 @@ function handleEvent(eventName, data)
       killer.health = killer.health + 1
       -- increment the # of unitsKilled by the Chosen by 1 for victory con
       local newKilled = Gamestate['Chosen'..killer.player]['unitsKilled'] + 1
+      Gamestate['Chosen'..killer.player]['unitsKilled'] = newKilled
       -- * note that when we update, we have to send the entire table over, not just the field we're editing
       -- * this is because we can only update the whole 'Chosen' field, not a specific attribute of it
       -- * coding limitations, but nbd
@@ -142,7 +162,24 @@ function handleEvent(eventName, data)
                       {killer.name..' killed '..victim.name, 5})
   end
 
+  if eventName == 'unitMove' then
+    local mover, oldTileRef, newTileRef = unpack(data)
+
+    -- ! special side effects
+    -- * the Chain's side effect
+    -- if the mover has a Chain attached
+    if mover.specTable.tags["chain|AttachedTo"] then
+      -- first, we find the Chain unit
+      local chainUnit = FindUnitByID(mover.specTable.tags["chain|AttachedTo"])
+      -- then, we move the Chain unit to the newTileRef
+      removeUnitFromTile(chainUnit, oldTileRef)
+      addUnitToTile(chainUnit, newTileRef)
+    end
+  
+  end
+
 end
+
 
 -- ! LOVE FUNCTIONS
 
@@ -173,26 +210,37 @@ function love.load()
   -- used to keep track of how many unit there are
   UnitCount = 0
 
-    -- ! MANAGING THE BOARD
+  -- ! MANAGING THE BOARD
 
   -- create the master copy of the lanes
   CreateMasterLanes()
+   -- TODO: remove
+  -- MasterLanes['y'][3].content = {
+  --   {uid='1', name='1', player=2, cost=1, attack=2, health=4, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
+  --   {uid='2', name='2', player=2, cost=1, attack=2, health=4, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
+  --   {uid='3', name='3', player=2, cost=1, attack=2, health=4, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } }
+  --                               }
+  -- TODO: remove
 
-  -- {uid= 'Rand0', name='Rand', player=1, cost=2, attack=3, health=6}
+  -- {uid=unitName..UnitCount,name=unitName,
+  -- player=getPlayer(client),cost=cst,attack=atk,
+  -- health=hp,tile=tileRef,specTable=special}
+
 
   server:on("createUnitOnTile", function(data, client)
     --used to create a unit from just a unit name, assigning it a UnitCount and its default stats
     print('Received createUnitOnTile')
     local unitName, tileRef = data[1], data[2]
     print('Creating '..unitName..' on tile '..tileRef)
-    -- tileRef is in form 'rA'
-    local tile = tileRefToTile(tileRef, client)
+    -- * tileRef is in form 'rA'
+    -- * we need to convert it before setting the units stored reference
+    local spawnTile, newRef = tileRefToTile(tileRef, client)
     UnitCount = UnitCount + 1
     -- calculate the statistics of the unit by referencing unitList
     local unitRef = UnitList[unitName]
     local cst, atk, hp, special = unitRef[1], unitRef[2], unitRef[3], unitRef.special
-    local unit = {uid=unitName..UnitCount,name=unitName,player=getPlayer(client),cost=cst,attack=atk,health=hp,specTable=special}
-    table.insert(tile.content, unit)
+    local unit = {uid=unitName..UnitCount,name=unitName,player=getPlayer(client),cost=cst,attack=atk,health=hp,tile=newRef,specTable=special}
+    table.insert(spawnTile.content, unit)
     -- send out the updated board
     server:sendToAll("updateLanes", MasterLanes)
   end)
@@ -200,7 +248,9 @@ function love.load()
   function addUnitToTile(unit, tileRef)
     -- * used to add an already-existing unit table to a tile
     local tile = tileRefToTile(tileRef)
-    -- we have the unit table already
+    -- update the stored tileRef
+    unit.tile = tileRef
+    -- insert the unit
     table.insert(tile.content, unit)
   end
 
@@ -224,19 +274,29 @@ function love.load()
     -- * used for one unit to attack another
     print('Received unitAttack')
     -- define variables
-    local attacker, attackerTileRef, defender, defenderTileRef = data[1], data[2], data[3], data[4]
+    local attacker, defender, doNotCheckRange = unpack(data)
+    local attackerTileRef, defenderTileRef = attacker.tile, defender.tile
     local newDefenderHP = defender.health - attacker.attack
     local attTile = tileRefToTile(attackerTileRef, client)
     local defTile = tileRefToTile(defenderTileRef, client)
     local dIndex = findUnitIndex(defender, defTile)
 
-    -- make sure they're in the same tile
+    -- hunter special
+    -- ? do we really want to have this here?
+    -- ? if we have to do another case like this, switch to having a TargetPicked() event
+    -- ? otherwise, i guess it's okay for now
+    if defender.specTable['tags']['hunter|MarkedBy'] == attacker.uid then goto skipRange end
+    -- generic checking for doNotCheckRange
+    if not doNotCheckRange then goto skipRange end
+    -- check range
     if distanceBetweenTiles(attTile, defTile) ~= 0 then
       -- if not, print an error here and send an alert over to client
       print('Attack target was out of range')
       server:sendToPeer(getPeer(client), "createAlert", {'Target out of range', 5})
       return false
     end
+    ::skipRange::
+
 
     if newDefenderHP <= 0 then
       -- * if the HP is zero or below, call the Death event
@@ -262,18 +322,18 @@ function love.load()
     removeUnitFromTile(unit, oldTileRef)
     -- add to new tile
     addUnitToTile(unit, newTileRef)
-    -- use a secondray action
-    server:sendToPeer(getPeer(client), "actionUsed", 'secondary')
+    -- handle the unit movement event
+    handleEvent("unitMove", {unit, oldTileRef, newTileRef})
     -- update the board
     server:sendToAll("updateLanes", MasterLanes)
   end)
 
   server:on("modifyUnitTable", function(data, client)
     print('Received modifyUnitTable')
-    -- * used to modify a field of a unit, e.g. health, atk, name
-    local unit, tileRef, field, newValue = unpack(data)
+    -- * used to modify a field of a unit, e.g. health, atk, name, spectable
+    local unit, field, newValue = unpack(data)
     -- find the unit in place, set the new value
-    local tile = tileRefToTile(tileRef)
+    local tile = tileRefToTile(unit.tile)
     local index = findUnitIndex(unit, tile)
     tile.content[index][field] = newValue
     server:sendToAll("updateLanes", MasterLanes)
@@ -281,11 +341,26 @@ function love.load()
 
   -- ! TURN SYSTEM
 
+  server:on("useAction", function (data, client)
+    local actionType, actionUser, reason = unpack(data)
+    server:sendToPeer(getPeer(client), "actionUsed", actionType)
+  end)
+
   CurrentTurnTaker = 1
 
   server:on("endMyTurn", function(data, client)
     print('Received endMyTurn')
     -- * the signal that the client has completed their turn
+    -- * also manages victory/defeat checks
+    -- check if victory condition is achieved
+    for player,_ in pairs(Players) do
+      local playerAscendant = Gamestate['Ascendant'..player]
+      local asc = AscendantList[playerAscendant]
+      if asc.victoryFunc(player) then
+        local winner = getPeer(Players[player])
+        server:sendToPeer(winner, "youWin", {})
+      end
+    end
     -- TODO: some internal turn management
     -- the second argument is the player ID (numbers for now)
     local newTurnTaker

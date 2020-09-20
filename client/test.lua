@@ -1,2 +1,3 @@
-red = {}
-print(0 or red['he'])
+x = {a=1, b=2}
+
+print(x[1])
