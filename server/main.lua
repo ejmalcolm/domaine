@@ -63,7 +63,7 @@ function tileRefToTile(tileRef, client)
     local laneCode = tileRef:sub(1,1)
     local tileCode = tonumber(tileRef:sub(2,2))
     local tile = MasterLanes[laneCode][tileCode]
-    return tile
+    return tile, tileRef
   end
   -- then, handle the rA case
   local translator
@@ -121,61 +121,38 @@ end
 
 -- ! EVENT HANDLER
 
+-- TODO: remove
 Gamestate['DeadUnits'] = {}
 
-function handleEvent(eventName, data)
+-- * obtains the specRefs of the unit associated with the given event
+-- * e.g. getSpecRef(knight, "onAttack") -> onAttack|knightPassive -> "knightPassive"
+local function getSpecRefs(unit, event)
+  local tags = unit.specTable['tags']
+  local specRefs = {}
+  for tag, _ in pairs(tags) do
+    -- oh god, regex. just splits on | basically
+    local tagEvent = string.gmatch(tag, '[^%|]*')()
+    local specRef = string.gmatch(tag, '%|(.*)')()
+    if event == tagEvent then table.insert(specRefs, specRef) end
+  end
+  -- check if there are any specRefs that matched
+  -- if not, return false, else, return the specRefs table
+  if #specRefs==0 then return false else return specRefs end
+end
+
+function handleEvent(eventName, unitsInvolved, data)
   -- * handles various events that occur in the game
 
-  if eventName == 'unitDeath' then
-    local client, killer, kTile, victim, vTile = unpack(data)
-
-    -- ! killer side-effects
-    -- SACRAMENT'S CHOSEN
-    if not Gamestate['Chosen'..killer.player] then
-      -- check if there actually is a chosen
-      goto noChosen
+  for _, unit in pairs(unitsInvolved) do
+    -- get the specRef associated with the event being handled
+    -- returns false if the unit has no tag for this event
+    local specRefs = getSpecRefs(unit, eventName)
+    if specRefs then
+      for _, specRef in pairs(specRefs) do
+        local client = Players[unit.player]
+        server:sendToPeer(getPeer(client), "callSpecFunc", {specRef, data})
+      end
     end
-    if killer.uid == Gamestate['Chosen'..killer.player]['currentChosen'] then
-      -- increment atk and hp
-      killer.attack = killer.attack + 1
-      killer.health = killer.health + 1
-      -- increment the # of unitsKilled by the Chosen by 1 for victory con
-      local newKilled = Gamestate['Chosen'..killer.player]['unitsKilled'] + 1
-      Gamestate['Chosen'..killer.player]['unitsKilled'] = newKilled
-      -- * note that when we update, we have to send the entire table over, not just the field we're editing
-      -- * this is because we can only update the whole 'Chosen' field, not a specific attribute of it
-      -- * coding limitations, but nbd
-      server:sendToAll("updateVar", {'Chosen'..killer.player, {currentChosen=killer.uid, unitsKilled=newKilled} })
-      -- "replace" the old killer with the new upgraded one
-      kTile.content[findUnitIndex(killer, kTile)] = killer
-    end
-    ::noChosen::
-
-    -- ! actually kill the victim
-    -- add to the list of dead units and update that for everyone
-    table.insert(Gamestate['DeadUnits'], victim)
-    server:sendToAll("updateVar", {'DeadUnits', Gamestate['DeadUnits']})
-    -- remove victim from tile
-    table.remove(vTile.content, findUnitIndex(victim, vTile))
-    -- alert the player
-    server:sendToPeer(getPeer(client), "createAlert",
-                      {killer.name..' killed '..victim.name, 5})
-  end
-
-  if eventName == 'unitMove' then
-    local mover, oldTileRef, newTileRef = unpack(data)
-
-    -- ! special side effects
-    -- * the Chain's side effect
-    -- if the mover has a Chain attached
-    if mover.specTable.tags["chain|AttachedTo"] then
-      -- first, we find the Chain unit
-      local chainUnit = FindUnitByID(mover.specTable.tags["chain|AttachedTo"])
-      -- then, we move the Chain unit to the newTileRef
-      removeUnitFromTile(chainUnit, oldTileRef)
-      addUnitToTile(chainUnit, newTileRef)
-    end
-  
   end
 
 end
@@ -215,11 +192,11 @@ function love.load()
   -- create the master copy of the lanes
   CreateMasterLanes()
    -- TODO: remove
-  -- MasterLanes['y'][3].content = {
-  --   {uid='1', name='1', player=2, cost=1, attack=2, health=4, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
-  --   {uid='2', name='2', player=2, cost=1, attack=2, health=4, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
-  --   {uid='3', name='3', player=2, cost=1, attack=2, health=4, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } }
-  --                               }
+  MasterLanes['y'][3].content = {
+    {uid='1', name='1', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
+    {uid='2', name='2', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
+    {uid='3', name='3', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } }
+                                }
   -- TODO: remove
 
   -- {uid=unitName..UnitCount,name=unitName,
@@ -230,18 +207,42 @@ function love.load()
   server:on("createUnitOnTile", function(data, client)
     --used to create a unit from just a unit name, assigning it a UnitCount and its default stats
     print('Received createUnitOnTile')
+    print(inspect(data))
     local unitName, tileRef = data[1], data[2]
     print('Creating '..unitName..' on tile '..tileRef)
     -- * tileRef is in form 'rA'
     -- * we need to convert it before setting the units stored reference
     local spawnTile, newRef = tileRefToTile(tileRef, client)
+    -- * check to make sure 
     UnitCount = UnitCount + 1
     -- calculate the statistics of the unit by referencing unitList
     local unitRef = UnitList[unitName]
-    local cst, atk, hp, special = unitRef[1], unitRef[2], unitRef[3], unitRef.special
-    local unit = {uid=unitName..UnitCount,name=unitName,player=getPlayer(client),cost=cst,attack=atk,health=hp,tile=newRef,specTable=special}
+    local cst, atk, hp, cM, cA, cS, special = unitRef[1], unitRef[2], unitRef[3], unitRef.canMove, unitRef.canAttack, unitRef.canSpecial, unitRef.special
+    local unit = {uid=unitName..UnitCount,name=unitName,player=getPlayer(client),cost=cst,
+                  attack=atk,health=hp,tile=newRef,canMove=cM,canAttack=cA,canSpecial=cS,
+                  specTable=special}
+    print(inspect(unit))
     table.insert(spawnTile.content, unit)
     -- send out the updated board
+    server:sendToAll("updateLanes", MasterLanes)
+  end)
+
+  server:on("addUnitToTile", function(data, client)
+    print('Received addUnitToTile')
+    -- add the unit
+    local unit, newRef = unpack(data)
+    addUnitToTile(unit, newRef)
+    -- update the board
+    server:sendToAll("updateLanes", MasterLanes)
+  end)
+
+  server:on("removeUnitFromTile", function(data, client)
+    print('Received removeUnitFromTile')
+    -- remove the unit
+    local unit = data[1]
+    local tileRef = (data[2] or unit.tile)
+    removeUnitFromTile(unit, tileRef)
+    -- update the board
     server:sendToAll("updateLanes", MasterLanes)
   end)
 
@@ -255,18 +256,14 @@ function love.load()
   end
 
   function removeUnitFromTile(unit, tileRef)
-    print('Received removeUnitFromTile')
+    print('Server removeUnitFromTile')
+    local tileRef = tileRef or unit.tile
     local tile = tileRefToTile(tileRef)
     local index = findUnitIndex(unit, tile)
     table.remove(tile.content, index)
   end
 
-  server:on("printReceivedArgs", function(data, client)
-    -- just used to check different args
-    for k,v in pairs(data) do
-      print(v)
-    end
-  end)
+
 
   -- ! BASIC UNIT ACTIONS
 
@@ -299,8 +296,12 @@ function love.load()
 
 
     if newDefenderHP <= 0 then
-      -- * if the HP is zero or below, call the Death event
-      handleEvent('unitDeath', {client, attacker, attTile, defender, defTile})
+      -- * if the HP is zero or below, kill them
+      -- remove the unit
+      removeUnitFromTile(defender)
+      -- call the events
+      handleEvent("unitKill", {attacker}, {attacker})
+      handleEvent("unitDeath", {defender}, {defender})
     else
       -- * if the HP is above zero, change the HP stat
       print(defender.uid.. ' now has '..newDefenderHP..' health')
@@ -318,40 +319,128 @@ function love.load()
   server:on("unitMove", function(data, client)
     print('Received unitMove')
     local unit, oldTileRef, newTileRef = data[1], data[2], data[3]
+
+    -- first, we check unitMoveIn and unitMoveOut for all units in the old and new tile
+    local oldTile, newTile = tileRefToTile(oldTileRef), tileRefToTile(newTileRef)
+    local outUnits, inUnits = {}, {}
+    for _, oldUnit in pairs(oldTile.content) do
+      -- note that outUnits contains the moving unit self
+      table.insert(outUnits, oldUnit)
+    end
+    for _, newUnit in pairs(newTile.content) do
+      table.insert(inUnits, newUnit)
+    end
+
+    handleEvent("unitMoveOut", outUnits, {unit, oldTileRef, newTileRef})
+    handleEvent("unitMoveIn", inUnits, {unit, oldTileRef, newTileRef})
+
+    -- ! actual movement
     -- remove from old tile
     removeUnitFromTile(unit, oldTileRef)
     -- add to new tile
     addUnitToTile(unit, newTileRef)
+
+
     -- handle the unit movement event
-    handleEvent("unitMove", {unit, oldTileRef, newTileRef})
+    handleEvent("unitMove", {unit}, {unit, oldTileRef, newTileRef})
     -- update the board
     server:sendToAll("updateLanes", MasterLanes)
   end)
 
-  server:on("modifyUnitTable", function(data, client)
-    print('Received modifyUnitTable')
-    -- * used to modify a field of a unit, e.g. health, atk, name, spectable
-    local unit, field, newValue = unpack(data)
+  -- * server-side version of below
+  function modifyUnitTable(unit, field, newValue)
     -- find the unit in place, set the new value
     local tile = tileRefToTile(unit.tile)
     local index = findUnitIndex(unit, tile)
     tile.content[index][field] = newValue
     server:sendToAll("updateLanes", MasterLanes)
+  end
+
+  -- * used to modify a field of a unit, e.g. health, atk, name, spectable
+  server:on("modifyUnitTable", function(data, client)
+    print('Received modifyUnitTable')
+    local unit, field, newValue = unpack(data)
+    assert(unit, 'Unit missing in a client modifyUnitTable call.')
+    -- find the unit in place, set the new value
+    local tile = tileRefToTile(unit.tile)
+    local index = findUnitIndex(unit, tile)
+    -- first we check that the unit exists. if it doesn't and we try to change, it'll crash
+    if not tile.content[index] then return false end
+    tile.content[index][field] = newValue
+    -- if health, we have to check for death
+    if (field == 'health') and newValue <= 0 then
+      server:sendToAll("createAlert", {unit.name..' was killed.', 5})
+      removeUnitFromTile(unit, unit.tile)
+    end
+    server:sendToAll("updateLanes", MasterLanes)
   end)
 
-  -- ! TURN SYSTEM
+  -- ! TURN SYSTEM & QUEUEING ACTIONS
+
+  CurrentTurnTaker = 1 -- what player number starts the game
+  Gamestate.turnNumber = 1
+  TimedEventQueue = {}
+  TimedFuncQueue = {}
 
   server:on("useAction", function (data, client)
     local actionType, actionUser, reason = unpack(data)
     server:sendToPeer(getPeer(client), "actionUsed", actionType)
   end)
 
-  CurrentTurnTaker = 1
+  local function advanceTurnTimer()
+    -- advance the turn number
+    Gamestate.turnNumber = Gamestate.turnNumber + 1
+    server:sendToAll("updateVar", {'turnNumber', Gamestate.turnNumber})
+    print('Turn Number:', Gamestate.turnNumber)
 
+    -- check if there's anything in the EventQueue for this turn
+    if not TimedEventQueue[Gamestate.turnNumber] then goto noEvents end
+    -- if there is, call those events
+    for _, eventsTable in pairs(TimedEventQueue[Gamestate.turnNumber]) do
+      local event, args = unpack(eventsTable)
+      server:sendToAll("triggerEvent", {event, args})
+    end
+    ::noEvents::
+
+    -- check if there's anything for the FuncQueue for this turn
+    if not TimedFuncQueue[Gamestate.turnNumber] then return end
+    -- if there is, call those funcs
+    for _, funcTable in pairs(TimedFuncQueue[Gamestate.turnNumber]) do
+      local func, args = unpack(funcTable)
+      func(unpack(args))
+    end
+  end
+
+  -- * server-side version of below. triggers a server function instead of an event
+  function queueTimedFunc(func, turnsFromNow, args)
+    local triggerTurn = Gamestate.turnNumber + turnsFromNow
+    if TimedFuncQueue[triggerTurn] then
+      -- if there's already an func(s) queued for that turn, add to that table
+      table.insert(TimedFuncQueue[triggerTurn], {func, args})
+    elseif not TimedFuncQueue[triggerTurn] then
+      -- if no funcs are queued, create a new table entirely
+      TimedFuncQueue[triggerTurn] = {{func, args}}
+    end
+  end
+
+  -- * causes the server to trigger a client Event some turns from now
+  server:on("queueTimedEvent", function(data, client)
+    print('Received queueTimedEvent')
+    local event, turnsFromNow, args = unpack(data)
+    local triggerTurn = Gamestate.turnNumber + turnsFromNow
+    if TimedEventQueue[triggerTurn] then
+      -- if there's already an event(s) queued for that turn, add to that table
+      table.insert(TimedEventQueue[triggerTurn], {event, args})
+    elseif not TimedEventQueue[triggerTurn] then
+      -- if no events are queued, create a new table entirely
+      TimedEventQueue[triggerTurn] = {{event, args}}
+    end
+  end)
+  
+  -- * the signal that the client has completed their turn
+  -- * also manages victory/defeat checks
   server:on("endMyTurn", function(data, client)
     print('Received endMyTurn')
-    -- * the signal that the client has completed their turn
-    -- * also manages victory/defeat checks
     -- check if victory condition is achieved
     for player,_ in pairs(Players) do
       local playerAscendant = Gamestate['Ascendant'..player]
@@ -361,7 +450,8 @@ function love.load()
         server:sendToPeer(winner, "youWin", {})
       end
     end
-    -- TODO: some internal turn management
+    -- increment the turn timer and activate any queued actions
+    advanceTurnTimer(client)
     -- the second argument is the player ID (numbers for now)
     local newTurnTaker
     if client:getIndex() == 1 then newTurnTaker = 2
@@ -370,7 +460,7 @@ function love.load()
     print('It is now '..newTurnTaker.."'s turn.")
     server:sendToAll("setPlayerTurn", newTurnTaker)
   end)
-
+ 
   -- ! COMMUNICATE WITH CLIENT
 
   server:on("updateVar", function(data)

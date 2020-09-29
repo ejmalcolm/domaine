@@ -134,10 +134,10 @@ function board.update(dt)
           -- ! CONTROL PANEL
           -- * overall, we only create the control panel if its our turn and if the activeUnit is allied
           if isMyTurn() and ActiveUnit.player == playerNumber then
-          -- ! move buttons if we have secondary actions
-            if ActionsRemaining.secondary >= 1 then
+            -- ! MOVE BUTTONS
+            if (ActionsRemaining.secondary >= 1) and ActiveUnit.canMove then
               -- ? repeated code here, could possibly be optimized
-              -- move up/down arrows
+              
               if tileKey ~= 1 then
                 -- if not in the "upmost" tile, have a down arrow
                 local moveUp = CPanelSuit:ImageButton(UpArrow, {hovered=UpArrowHovered}, CPanelSuit.layout:row(20,20))
@@ -168,8 +168,14 @@ function board.update(dt)
                   client:send("useAction", {'secondary', unit, "unitMove"})
                 end
               end
+
               -- empty label for spacing
               CPanelSuit:Label('', CPanelSuit.layout:row(3,3))
+            end
+
+
+            -- ! ABILITY BUTTON
+            if ((ActionsRemaining.secondary >= 1) and (ActiveUnit.canSpecial) and (ActiveUnit.specTable['specRef'] ~= nil)) then
               -- use ability button
               local useAbilityButton = CPanelSuit:Button('A', CPanelSuit.layout:row(20,20))
               if useAbilityButton.hit then
@@ -179,8 +185,9 @@ function board.update(dt)
               -- empty label for spacing
               CPanelSuit:Label('', CPanelSuit.layout:row(3,3))
             end
-            -- ! attack/ability button if we have primary actions
-            if ActionsRemaining.primary >= 1 then
+
+            -- ! ATTACK BUTTON
+            if (ActionsRemaining.primary >= 1) and ActiveUnit.canAttack then
               -- attack Button with logic
               local attackButton = CPanelSuit:ImageButton(AttackIcon, {hovered=AttackIconHovered}, CPanelSuit.layout:row(20,20))
               if attackButton.hit then
@@ -210,7 +217,8 @@ function board.update(dt)
 	-- ! TURN COUNTER
 	TurnCounterSuit.layout:reset(0,0)
   TurnCounterSuit.layout:padding(1)
-  TurnCounterSuit:Button('Turn X', TurnCounterSuit.layout:row(130,20))
+  local currentTurn = Gamestate.turnNumber
+  TurnCounterSuit:Button('Turn '..currentTurn, TurnCounterSuit.layout:row(130,20))
   if isMyTurn() then
     local endTurnButton = TurnCounterSuit:Button('End your turn', TurnCounterSuit.layout:row())
     if endTurnButton.hit then client:send("endMyTurn", {}) end
@@ -322,7 +330,7 @@ function board.draw()
   APanelSuit:draw()
 
   -- draw selection options, if present
-	suit.draw()
+  suit.draw()
 end
 
 return board

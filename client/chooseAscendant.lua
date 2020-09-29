@@ -14,6 +14,8 @@ function chooseAscendant.load()
   sacramentBGM:setVolume(.1)
   AscendantSounds['The Sacrament'] = {bgm=sacramentBGM}
 
+  CreatePopup('Hello', {'1', '2', '3'}, 20, "h")
+
 end
 
 function chooseAscendant.update(dt)

@@ -78,7 +78,7 @@ function UpdatePopups(dt)
       PopupSuit.layout:reset(centerX-150, centerY-59)
       PopupSuit.layout:padding(1)
       -- cancel button in the top right
-      PopupSuit.layout:reset(centerX+179, centerY-99)
+      PopupSuit.layout:reset(centerX+177, centerY-98)
       local cancelButton = PopupSuit:Button('X', PopupSuit.layout:row(20,20))
       if cancelButton.hit then PopupMenus[title][1] = 0 end
       -- option buttons
@@ -123,7 +123,7 @@ function UpdatePopupDisplays(dt)
       PopupDisplaySuit.layout:reset(centerX-150, centerY-59)
       PopupDisplaySuit.layout:padding(1)
       -- ! cancel button in the top right
-      PopupDisplaySuit.layout:reset(centerX+179, centerY-99)
+      PopupDisplaySuit.layout:reset(centerX+179, centerY-95)
       local cancelButton = PopupDisplaySuit:Button('X', PopupDisplaySuit.layout:row(20,20))
       if cancelButton.hit then PopupDisplays[title][4] = false return end
       -- ! display information
@@ -242,13 +242,20 @@ function connectToHost(ip)
 
   -- ! SERVER-TO-CLIENT COMMUNICATION
 
-  -- allows the server to create client-side alerts
+  -- * allows the server to create client-side alerts
   client:on("createAlert", function(data)
     local alertText, duration = data[1], data[2]
-
     CreateAlert(alertText, duration)
   end)
 
+  -- * allows the server to trigger events
+  client:on("triggerEvent", function(data)
+    print('triggerEvent', inspect(data))
+    local event, triggerArgs = unpack(data)
+    TriggerEvent(event, triggerArgs)
+  end)
+
+  -- * used to update the Gamestate table, used to track global, game-level data
   client:on("updateVar", function(data)
     local varName, varValue = data[1], data[2]
     print('gamestate var updated', varName, varValue)
@@ -256,9 +263,16 @@ function connectToHost(ip)
   end)
 
   client:on("youWin", function(data)
-    print('oh you win!')
     CreateAlert('You win!!!!', 10)
     changeScreen(menu)
+  end)
+
+  client:on("callSpecFunc", function(data)
+    local specRef, args = unpack(data)
+    print(specRef, args)
+    args = args or {}
+    print(specRef, args)
+    unitSpecs[specRef](unpack(args))
   end)
 
   -- ! BOARD FUNCTIONS
@@ -305,12 +319,14 @@ end
 function love.load()
   -- used to manage game data
   Gamestate = {}
+  Gamestate.turnNumber = 1
   -- used as a queueing system for WaitFor() events
   WaitingFor = {}
   -- used to draw temporary alerts
   AlertSuit = suit.new()
   ActiveAlerts = {}
   -- used for popup menus
+  PopUpBG = love.graphics.newImage('images/PopUpBG.png')
   PopupSuit = suit.new()
   PopupMenus = {}
   -- used for infopanels
@@ -363,14 +379,6 @@ end
 
 
 function love.draw()
-  
-  -- draw alerts
-  suit.theme.color = {
-    normal   = {bg = { 1, 1, 1}, fg = {0,0,0}},
-    hovered  = {bg = { 0.19,0.6,0.73}, fg = {1,1,1}},
-    active   = {bg = {1,0.6,  0}, fg = {1,1,1}}
-  }
-  AlertSuit:draw()
 
   -- reset default theme
   suit.theme.color = {
@@ -383,13 +391,19 @@ function love.draw()
   suit.theme.color = AscendantTheme
   currentScreen.draw()
 
+  -- draw alerts
+  suit.theme.color = {
+    normal   = {bg = { 1, 1, 1}, fg = {0,0,0}},
+    hovered  = {bg = { 0.19,0.6,0.73}, fg = {1,1,1}},
+    active   = {bg = {1,0.6,  0}, fg = {1,1,1}}
+  }
+  AlertSuit:draw()
+
   -- draw popup menus
   if ActivePopup then
     -- background of popup
     love.graphics.rectangle('fill', centerX-200, centerY-100, 400, 200)
-    -- border of popup
-    love.graphics.setColor(128,0,0)
-    love.graphics.rectangle('line', centerX-200, centerY-100, 400, 200)
+    love.graphics.draw(PopUpBG, centerX-200, centerY-100)
     -- suit theme
     suit.theme.color = {
       normal   = {bg = { 211/255, 211/255, 211/255}, fg = {0,0,0}},
@@ -404,9 +418,7 @@ function love.draw()
   if ActivePopupDisplay then
     -- background of popup
     love.graphics.rectangle('fill', centerX-200, centerY-100, 400, 200)
-    -- border of popup
-    love.graphics.setColor(128,0,0)
-    love.graphics.rectangle('line', centerX-200, centerY-100, 400, 200)
+    love.graphics.draw(PopUpBG, centerX-200, centerY-100)
     -- suit theme
     suit.theme.color = {
       normal   = {bg = {.9,.9,.9}, fg = {0,0,0}},

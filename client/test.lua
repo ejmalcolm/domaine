@@ -1,3 +1,5 @@
-x = {a=1, b=2}
+x = 'Chronomage1'
 
-print(x[1])
+local newID = string.match(x, '.*%D')
+
+print(newID)
