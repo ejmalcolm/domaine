@@ -75,14 +75,13 @@ local function sirenSpecial(caster)
   CreateAlert('Target an enemy unit in an adjacent Tile.', 3)
   WaitFor("targetEnemy", function(enemyUnit)
     -- first, we check if target is valid
-    if distanceBetweenRefs(caster.tile, enemyUnit.tile) ~= 1 then
-      CreateAlert('Invalid target; not adjacent tiles!', 3)
-      return
-    end
-    -- if all's well, we move the target to the caster's tile
-    client:send("unitMove", {enemyUnit, enemyUnit.tile, caster.tile})
-    -- use a secondary action
-    client:send("useAction", {'secondary', caster, 'unitSpecial'})
+    -- the condition table here is that the distance be exactly one
+    client:send("unitTargetCheck", {enemyUnit, caster, {distanceBetweenIs=1} })
+    WaitFor(enemyUnit.uid.."TargetSucceed", function()
+      -- if all's well, we move the target to the caster's tile
+      client:send("unitMove", {enemyUnit, enemyUnit.tile, caster.tile})
+      --TODO:action
+    end)
   end, {'triggerArgs'})
 end
 
@@ -91,23 +90,25 @@ unitSpecs["sirenSpec"] = sirenSpecial
 -- ! ROUTER
 
 local function routerSpecial(caster)
-  CreateAlert('Target a friendly Unit in the same Tile.', 3)
+  CreateAlert('Target an allied Unit in the same Tile.', 3)
   WaitFor("targetAlly", function(allyUnit)
     -- check they're in the same tile
-    if allyUnit.tile ~= caster.tile then
-      CreateAlert('Invalid target', 3)
-      return
-    end
-    -- then, select a different tile to move that unit to
-    AskingForTile = true
-    CreateAlert('Select a Tile to move to.', 5)
-    WaitFor("tileSelected", function(newTileRef)
-      -- move the ally unit
-      client:send("unitMove", {allyUnit, allyUnit.tile, newTileRef})
-    -- use a secondary action
-    client:send("useAction", {'secondary', caster, 'unitSpecial'})
-    end, {'triggerArgs'}) -- * end of tileSelected block
+    client:send("unitTargetCheck", {allyUnit, caster, {distanceBetweenIs=0} })
+    WaitFor(allyUnit.uid.."TargetSucceed", function()
+
+      -- then, select a different tile to move that unit to
+      AskingForTile = true
+      CreateAlert('Select a Tile to move to.', 5)
+      WaitFor("tileSelected", function(newTileRef)
+        -- move the ally unit
+        client:send("unitMove", {allyUnit, allyUnit.tile, newTileRef})
+      -- TODO: action
+      end, {'triggerArgs'}) -- * end of tileSelected block
+
+    end) -- * end of TargetSucceed
+
   end, {'triggerArgs'}) -- * end of targetAlly block
+
 end
 
 unitSpecs["routerSpec"] = routerSpecial
@@ -135,19 +136,20 @@ local function chainSpec(caster)
   CreateAlert('Select a Unit to attach to.', 3)
   WaitFor("targetUnit", function(targetUnit)
     -- we verify the target is in the same tile
-    if distanceBetweenRefs(caster.tile, targetUnit.tile) ~= 0 then
-      CreateAlert('Invalid target.', 3)
-      return false
-    end
-    -- TODO: we remove any other units that this chain is attached to
-    -- we attach a tag to the chain's specTable, "unitMove|chainAttached"
-    -- this tag contains the chain unit as the value
-    local newTargetSpec = targetUnit.specTable
-    newTargetSpec.tags["unitMove|chainAttached"] = caster.uid
-    client:send("modifyUnitTable", {targetUnit, 'specTable', newTargetSpec})
-    -- use a secondary action
-    client:send("useAction", {'secondary', caster, 'unitSpecial'})
-    -- when that unit moves, chainAttached() is called by the server handleEvent()
+    client:send("unitTargetCheck", {targetUnit, caster, {distanceBetweenIs=0} })
+    WaitFor(targetUnit.uid.."TargetSucceed", function()
+
+      -- TODO: we remove any other units that this chain is attached to
+      -- we attach a tag to the chain's specTable, "unitMove|chainAttached"
+      -- this tag contains the chain unit as the value
+      local newTargetSpec = targetUnit.specTable
+      newTargetSpec.tags["unitMove|chainAttached"] = caster.uid
+      client:send("modifyUnitTable", {targetUnit, 'specTable', newTargetSpec})
+      
+      -- TODO: action
+      -- * when that unit moves, chainAttached() is called by the server handleEvent()
+    end)
+
   end, {'triggerArgs'})
 end
 
@@ -155,7 +157,6 @@ end
 local function chainAttached(mover, oldTileRef, newTileRef)
     -- first, we find the Chain unit
     local chainUnit = findUnitByID(mover.specTable.tags["unitMove|chainAttached"])
-    print(inspect(chainUnit))
     -- then, we move the Chain unit to the newTileRef
     client:send("removeUnitFromTile", {chainUnit})
     client:send("addUnitToTile", {chainUnit, mover.tile})
@@ -171,17 +172,11 @@ local function sniperSpec(caster)
   CreateAlert('Select an enemy to attack.', 5)
   WaitFor("targetEnemy", function(targetEnemy)
     -- check if they're a valid target
-    local ref1, ref2 = caster.tile, targetEnemy.tile
-    local l1, t1 = ref1:sub(1,1), ref1:sub(2,2)
-    local l2, t2 = ref2:sub(1,1), ref2:sub(2,2)
-    -- ? are they not in same tile
-    if t1 ~= t2 then CreateAlert('Invalid target, not adjacent', 3) return false end
-    -- ? are they in adjacent lanes
-    if not adjacentLanes(l1, l2) then CreateAlert('Invalid target, not adjacent', 3) return false end
-    -- if all is well, make an attack
-    client:send("unitAttack", {caster, targetEnemy, doNotCheckRange=true})
-    -- use a secondary action
-    client:send("useAction", {'secondary', caster, 'unitSpecial'})
+    client:send("unitTargetCheck", {targetEnemy, caster, {horizontallyAdjacent=true} })
+    WaitFor(targetEnemy.uid.."TargetSucceed", function()
+      client:send("unitAttack", {caster, targetEnemy, doNotCheckRange=true})
+      -- TODO: action
+    end)
   end, {'triggerArgs'})
 end
 
@@ -189,6 +184,7 @@ unitSpecs["sniperSpec"] = sniperSpec
 
 -- ! HUNTER
 
+-- TODO: rework with new attack mechanics!!
 local function hunterSpec(caster)
   -- first, we get an enemy
   CreateAlert('Select a Unit to Mark.', 3)
@@ -211,24 +207,29 @@ unitSpecs["hunterSpec"] = hunterSpec
 local function nullitySpec(caster)
   CreateAlert('Target a unit.', 3)
   WaitFor("targetUnit", function(targetUnit)
-    -- first, we just remove the target unit
-    client:send("removeUnitFromTile", {targetUnit})
-    -- then, we remove the caster
-    client:send("removeUnitFromTile", {caster})
-    
-    -- ensures that one nullity returning doesn't return them all 
-    local uniqueReturnEvent = caster.uid.."Return"
-    -- then, we queueTimedEvent the event caster.uid.."Return" for targetUnit.health turns later
-    client:send("queueTimedEvent", {uniqueReturnEvent, targetUnit.health, {}})
+    -- check target validity
+    client:send("unitTargetCheck", {targetUnit, caster, {distanceBetweenIs=0} })
+    WaitFor(targetUnit.uid.."TargetSucceed", function()
 
-    -- we wait for that queued event, with a function that returns the nullity
-    WaitFor(uniqueReturnEvent, function(unitToReturn)
-      CreateAlert(caster.name..' has returned!', 3)
-      client:send("addUnitToTile", {unitToReturn, unitToReturn.tile})
-    end, {caster})
+      -- first, we just remove the target unit
+      client:send("removeUnitFromTile", {targetUnit})
+      -- then, we remove the caster
+      client:send("removeUnitFromTile", {caster})
+      
+      -- ensures that one nullity returning doesn't return them all 
+      local uniqueReturnEvent = caster.uid.."Return"
+      -- then, we queueTimedEvent the event caster.uid.."Return" for targetUnit.health turns later
+      client:send("queueTimedEvent", {uniqueReturnEvent, targetUnit.health, {}})
 
-    -- finally, we use a secondary ability
-    client:send("useAction", {'secondary', caster, 'unitSpecial'})
+      -- we wait for that queued event, with a function that returns the nullity
+      WaitFor(uniqueReturnEvent, function(unitToReturn)
+        CreateAlert(caster.name..' has returned!', 3)
+        client:send("addUnitToTile", {unitToReturn, unitToReturn.tile})
+      end, {caster})
+
+      -- TODO: action
+
+    end)
 
   end, {'triggerArgs'})
 end
@@ -308,15 +309,14 @@ local function fleetAdmiralSpec(caster)
       -- we get the contents of the tile
       local tile = tileRefToTile(refToStrike)
       for _, unit in pairs(tile.content) do
-        -- TODO: unit damage event?
+        -- TODO: unit damage server event?
         CreateAlert('Orbital strike activated!', 3)
         client:send("modifyUnitTable", {unit, 'health', unit.health - 3})
       end
     end, {tileRef})
 
 
-    -- finally, we use a secondary action
-    client:send("useAction", {'secondary', caster, 'unitSpecial'})
+    -- TODO: action
   end, {'triggerArgs'})
 end
 
@@ -326,7 +326,7 @@ unitSpecs["fleetAdmiralSpec"] = fleetAdmiralSpec
 
 local function plaguebearerPassive1(_, oldTileRef, _)
   -- * when the carcass moves out of a tile, kill everything in it
-  tile = tileRefToTile(oldTileRef)
+  local tile = tileRefToTile(oldTileRef)
   for _, unit in pairs(tile.content) do
     -- TODO: call death event for these units?
     client:send("removeUnitFromTile", {unit})
@@ -456,7 +456,7 @@ end
 
 unitSpecs["wallPassive"] = wallPassive
 
---TODO: road
+--TODO: road (needs actions to work)
 
 -- !!! TRANSMUTERS !!! --
 
@@ -468,15 +468,14 @@ local function demagogueSpec(caster)
   local uniqueEvent = caster.uid..'demagogueReversion'
   WaitFor("targetEnemy", function(targetEnemy)
     -- make sure enemy is in the same tile
-    if distanceBetweenRefs(caster.tile, targetEnemy.tile) ~= 0 then
-      CreateAlert('Invalid target.', 3)
-      return false
-    end
-    -- convert the enemy to this player
-    local originalPlayer = targetEnemy.player
-    client:send("modifyUnitTable", {targetEnemy, 'player', playerNumber})
-    -- schedule the reversion event
-    client:send("queueTimedEvent", {uniqueEvent, 1, {targetEnemy, originalPlayer}})
+    client:send("unitTargetCheck", {targetEnemy, caster, {distanceBetweenIs=0} })
+    WaitFor(targetEnemy.uid.."TargetSucceed", function()
+      -- convert the enemy to this player
+      local originalPlayer = targetEnemy.player
+      client:send("modifyUnitTable", {targetEnemy, 'player', playerNumber})
+      -- schedule the reversion event
+      client:send("queueTimedEvent", {uniqueEvent, 1, {targetEnemy, originalPlayer}})
+    end)
   end, {'triggerArgs'})
 
   --TODO: use an action
@@ -496,14 +495,12 @@ local function blankSpec(caster)
   CreateAlert('Target a unit.', 3)
   WaitFor("targetUnit", function(targetUnit)
     -- make sure enemy is in the same tile
-    if distanceBetweenRefs(caster.tile, targetUnit.tile) ~= 0 then
-      CreateAlert('Invalid target.', 3)
-      return false
-    end
-    
-    local emptySpecTable = {shortDesc='Special has been blanked.', fullDesc='Special has been blanked.', specRef=nil, tags={}}
-    client:send("modifyUnitTable", {targetUnit, 'specTable', emptySpecTable})
-    -- TODO: use action 
+    client:send("unitTargetCheck", {targetUnit, caster, {distanceBetweenIs=0} })
+    WaitFor(targetUnit.uid.."TargetSucceed", function()  
+      local emptySpecTable = {shortDesc='Special has been blanked.', fullDesc='Special has been blanked.', specRef=nil, tags={}}
+      client:send("modifyUnitTable", {targetUnit, 'specTable', emptySpecTable})
+      -- TODO: use action
+    end)
   end, {'triggerArgs'})
 end
 
@@ -515,26 +512,33 @@ local function wardenSpec(caster)
   -- unit target
   CreateAlert('Target a unit.', 3)
   WaitFor("targetUnit", function(targetUnit)
-    -- store original values
-    local OGmove, OGattack, OGspecial = targetUnit.canMove, targetUnit.canAttack, targetUnit.canSpecial
-    -- disable acting
-    client:send("modifyUnitTable", {targetUnit, 'canMove', false})
-    client:send("modifyUnitTable", {targetUnit, 'canAttack', false})
-    client:send("modifyUnitTable", {targetUnit, 'canSpecial', false})
+    -- make sure target is in same tile
+    client:send("unitTargetCheck", {targetUnit, caster, {distanceBetweenIs=0} })
+    WaitFor(targetUnit.uid.."TargetSucceed", function()
 
-    -- in 2 turns from now, revert it
-    local uniqueEvent = caster.uid..'wardenReversion'
-    client:send("queueTimedEvent", {uniqueEvent, 2, {targetUnit, OGmove, OGattack, OGspecial}})
+      -- store original values
+      local OGmove, OGattack, OGspecial = targetUnit.canMove, targetUnit.canAttack, targetUnit.canSpecial
+      -- disable acting
+      client:send("modifyUnitTable", {targetUnit, 'canMove', false})
+      client:send("modifyUnitTable", {targetUnit, 'canAttack', false})
+      client:send("modifyUnitTable", {targetUnit, 'canSpecial', false})
+
+      -- in 2 turns from now, revert it
+      local uniqueEvent = caster.uid..'wardenReversion'
+      client:send("queueTimedEvent", {uniqueEvent, 2, {targetUnit, OGmove, OGattack, OGspecial}})
 
 
-    WaitFor(uniqueEvent, function(data)
-      local target, moveFlag, attackFlag, specialFlag = unpack(data)
-      client:send("modifyUnitTable", {target, 'canMove', moveFlag})
-      client:send("modifyUnitTable", {target, 'canAttack', attackFlag})
-      client:send("modifyUnitTable", {target, 'canSpecial', specialFlag})
-    end, {'triggerArgs'})
-    
+      WaitFor(uniqueEvent, function(data)
+        local target, moveFlag, attackFlag, specialFlag = unpack(data)
+        client:send("modifyUnitTable", {target, 'canMove', moveFlag})
+        client:send("modifyUnitTable", {target, 'canAttack', attackFlag})
+        client:send("modifyUnitTable", {target, 'canSpecial', specialFlag})
+      end, {'triggerArgs'})
+
     -- TODO: action usage
+
+    end) -- * end of SuccessfulTarget block
+
   end, {'triggerArgs'})
 end
 
@@ -545,15 +549,18 @@ unitSpecs["wardenSpec"] = wardenSpec
 local function chronomageSpec(caster)
   CreateAlert('Target a unit.', 3)
   WaitFor("targetUnit", function(targetUnit)
-    -- strip all numbers from the UID
-    local newID = string.match(targetUnit.uid, '.*%D')
-    local newTile = targetUnit.tile
-    -- remove the unit
-    client:send("removeUnitFromTile", {targetUnit})
-    -- create the fresh copy
-    print(newTile)
-    client:send("createUnitOnTile", {newID, newTile})
-    -- TODO: use action
+    -- target must be in same tile
+    client:send("unitTargetCheck", {targetUnit, caster, {distanceBetweenIs=0} })
+      WaitFor(targetUnit.uid.."TargetSucceed", function()
+      -- strip all numbers from the UID
+      local newID = string.match(targetUnit.uid, '.*%D')
+      local newTile = targetUnit.tile
+      -- remove the unit
+      client:send("removeUnitFromTile", {targetUnit})
+      -- create the fresh copy
+      client:send("createUnitOnTile", {newID, newTile})
+      -- TODO: use action
+    end)
   end, {'triggerArgs'})
 end
 
@@ -586,11 +593,36 @@ unitSpecs["animatorSpec"] = animatorSpec
 
 
 
--- ! INEFFABLE
+-- ! BARGAIN
 
+local function bargainSpec(caster)
+  CreateAlert('Target an allied unit.', 3)
+  WaitFor("targetAlly", function(targetAlly)
+    client:send("unitTargetCheck", {targetAlly, caster, {distanceBetweenIs=0, canTargetSelf=false} })
+    WaitFor(targetAlly.uid.."TargetSucceed", function()
 
+      -- get list of all units
+      local unitNames = {}
+      -- add new names to unitList
+      for name, _ in pairs(unitList) do
+        table.insert(unitNames, name)
+      end
+      CreatePopup('Select a Unit.', unitNames, 120, "unitSelected")
 
--- ! RITUALIST
+      WaitFor("unitSelected", function(unitName, cast, target)
+        client:send("createUnitOnTile", {unitName, caster.tile})
+        client:send("removeUnitFromTile", {caster})
+        client:send("removeUnitFromTile", {targetAlly})
+      end, {'triggerArgs', caster, targetAlly})
+
+    end)
+  
+  end, {'triggerArgs'})
+end
+
+unitSpecs["bargainSpec"] = bargainSpec
+
+-- ! MARTYR
 
 
 
@@ -605,6 +637,8 @@ local function foolSpec(caster)
     local specFunc = unitSpecs[specRef]
     -- call the specRef
     specFunc(caster)
+    -- TODO: blank the fool's special. there's an issue with blanking if the specRef causes the Fool to move, cause then "caster" argument doesn't refer to the new unit
+    -- TODO: solve this by adding a new server function, modifyUnitTableWithoutTile, where we use FindByID instead?
   end, {'triggerArgs'})
 end
 

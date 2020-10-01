@@ -72,7 +72,7 @@ unitList["Knight"]["special"]["tags"]['storage|OriginalAttack'] = 1
 
 unitList["Nullity"] = {1, 1, 2,
 canMove=true, canAttack=true, canSpecial = true,
-special={shortDesc='ACTIVE: Kill a Unit in this, then remove this Unit from the game for turns equal to the HP of that Unit.',
+special={shortDesc='ACTIVE: Kill a Unit in this Tile, then remove this Unit from the game for turns equal to the HP of that Unit.',
          fullDesc='ACTIVE: Kill a Unit in this Tile. This Unit is removed from the game for X turns, where X is the amount of HP target Unit has.',
          specRef='nullitySpec',
          tags={} } }
@@ -208,8 +208,8 @@ special={shortDesc='ACTIVE: Kill this Unit. Gain 2 Actions of a chosen type.',
 
 unitList["Fool"] = {1, 1, 2,
 canMove=true, canAttack=true, canSpecial = true,
-special={shortDesc='ACTIVE: Target a Unit with an activated Special. Immediately activate that special with this Unit as the caster. This ability can only be used once.',
-         fullDesc='ACTIVE: Target a Unit with an activated Special. Immediately activate that special with this Unit as the caster. After using this ability, the Fool\'s special becomes nothing.',
+special={shortDesc='ACTIVE: Target a Unit with an activated Special. Immediately activate that special with this Unit as the caster. At the start of the next turn, the Fool\'s special is blanked..',
+         fullDesc='ACTIVE: Target a Unit with an activated Special. Immediately activate that special with this Unit as the caster. At the start of the next turn, the Fool\'s special is blanked.',
          specRef='foolSpec',
          tags={} } }
 

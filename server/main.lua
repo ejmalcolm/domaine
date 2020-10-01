@@ -91,6 +91,19 @@ function distanceBetweenTiles(tile1, tile2)
   end
 end
 
+local function adjacentLanes(lane1, lane2)
+  -- * note: lanes are not adjacent to themselves
+  if lane1 == 'r' then
+    if lane2 ~= 'y' then return false end
+  elseif lane1 == 'g' then
+    if lane2 ~= 'y' then return false end
+  elseif lane1 == 'y' then
+    -- only lane not adjacent to yellow is itself
+    if lane2 == 'y' then return false end
+  end
+  return true
+end
+
 function findUnitIndex(unitToFind, tileToSearch)
   for index, unitTable in pairs(tileToSearch.content) do
     -- find the thing in the content table
@@ -120,9 +133,6 @@ function FindUnitByID(uidToFind)
 end
 
 -- ! EVENT HANDLER
-
--- TODO: remove
-Gamestate['DeadUnits'] = {}
 
 -- * obtains the specRefs of the unit associated with the given event
 -- * e.g. getSpecRef(knight, "onAttack") -> onAttack|knightPassive -> "knightPassive"
@@ -207,7 +217,6 @@ function love.load()
   server:on("createUnitOnTile", function(data, client)
     --used to create a unit from just a unit name, assigning it a UnitCount and its default stats
     print('Received createUnitOnTile')
-    print(inspect(data))
     local unitName, tileRef = data[1], data[2]
     print('Creating '..unitName..' on tile '..tileRef)
     -- * tileRef is in form 'rA'
@@ -221,7 +230,6 @@ function love.load()
     local unit = {uid=unitName..UnitCount,name=unitName,player=getPlayer(client),cost=cst,
                   attack=atk,health=hp,tile=newRef,canMove=cM,canAttack=cA,canSpecial=cS,
                   specTable=special}
-    print(inspect(unit))
     table.insert(spawnTile.content, unit)
     -- send out the updated board
     server:sendToAll("updateLanes", MasterLanes)
@@ -374,6 +382,48 @@ function love.load()
     end
     server:sendToAll("updateLanes", MasterLanes)
   end)
+
+  -- * used to examine whether a given unit is a valid target for a certain set of conditions
+  server:on("unitTargetCheck", function(data, client)
+    -- * unit is a unit table.
+    -- * conditions is a table containing fields that specify what conditions need to be met
+    local unit, origin, conditions = unpack(data)
+    -- * we go through all the various conditions
+
+    -- first, we call the unitTargeted event
+    handleEvent("unitTargeted", {unit}, {unit})
+
+
+    -- ! vertical distance between
+    if conditions.distanceBetweenIs ~= nil then
+      local distance = conditions.distanceBetweenIs
+      local t1, t2 = tileRefToTile(unit.tile), tileRefToTile(origin.tile)
+      if distanceBetweenTiles(t1, t2) ~= distance then
+        server:sendToPeer(getPeer(client), "createAlert", {'Target out of range', 3})
+        return false
+      end
+    end
+
+    -- ! horizontal distance between
+    if conditions.horizontallyAdjacent ~= nil then
+      local t1, t2 = tileRefToTile(unit.tile), tileRefToTile(origin.tile)
+      -- check if in same tile
+      if t1.t ~= t2.t then server:sendToPeer(getPeer(client), "createAlert", {'Not in adjacent tiles.', 3}) return false end
+      -- check if in the same lane
+      if not adjacentLanes(t1.l, t2.l) then server:sendToPeer(getPeer(client), "createAlert", {'Not in adjacent tiles.', 3}) return false end
+    end
+
+    -- ! self-targeting
+    if conditions.canTargetSelf ~= nil then
+      if unit.uid == origin.uid then server:sendToPeer(getPeer(client), "createAlert", {'Cannot target self.', 3}) return false end
+    end
+
+    -- if all is well, we echo back a unique target event
+    server:sendToPeer(getPeer(client), "triggerEvent", {unit.uid..'TargetSucceed', {}})
+  end)
+
+  -- * same as above, but for tiles instead of units
+  server:on("tileTargetcheck", function(data, client) end)
 
   -- ! TURN SYSTEM & QUEUEING ACTIONS
 
