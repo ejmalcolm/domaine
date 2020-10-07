@@ -4,7 +4,8 @@ local inspect = require("inspect")
 UnitList = require("unitList")
 AscendantList = require("ascendantList")
 
-Gamestate = {}
+-- initialize the game
+Gamestate = {DeadUnits={}}
 
 function CreateMasterLanes()
 	MasterLanes = {}
@@ -153,6 +154,13 @@ end
 function handleEvent(eventName, unitsInvolved, data)
   -- * handles various events that occur in the game
 
+  if eventName == 'unitDeath' then
+    for _, unit in pairs(unitsInvolved) do
+      table.insert(Gamestate.DeadUnits, unit)
+    end
+    server:sendToAll("updateVar", {'DeadUnits', Gamestate.DeadUnits})
+  end
+
   for _, unit in pairs(unitsInvolved) do
     -- get the specRef associated with the event being handled
     -- returns false if the unit has no tag for this event
@@ -203,7 +211,7 @@ function love.load()
   CreateMasterLanes()
    -- TODO: remove
   MasterLanes['y'][3].content = {
-    {uid='1', name='1', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
+    {uid='1', name='Siren', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
     {uid='2', name='2', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
     {uid='3', name='3', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } }
                                 }
@@ -373,7 +381,7 @@ function love.load()
     local tile = tileRefToTile(unit.tile)
     local index = findUnitIndex(unit, tile)
     -- first we check that the unit exists. if it doesn't and we try to change, it'll crash
-    if not tile.content[index] then return false end
+    if not tile.content[index] then print('modifyunittable error') return false end
     tile.content[index][field] = newValue
     -- if health, we have to check for death
     if (field == 'health') and newValue <= 0 then
@@ -387,11 +395,15 @@ function love.load()
   server:on("unitTargetCheck", function(data, client)
     -- * unit is a unit table.
     -- * conditions is a table containing fields that specify what conditions need to be met
-    local unit, origin, conditions = unpack(data)
+    local unit, origin, conditions, data2 = unpack(data)
     -- * we go through all the various conditions
 
-    -- first, we call the unitTargeted event
-    handleEvent("unitTargeted", {unit}, {unit})
+    -- * before checking conditions, we check all neighbours
+    -- then, we call the UnitTargetedInTile event on every unit in the target's tile
+    local tile = tileRefToTile(unit.tile)
+    for _, neighbour in pairs(tile.content) do
+      handleEvent("unitTargetedInTile", {neighbour}, {neighbour, unit, data2})
+    end
 
 
     -- ! vertical distance between
@@ -418,8 +430,12 @@ function love.load()
       if unit.uid == origin.uid then server:sendToPeer(getPeer(client), "createAlert", {'Cannot target self.', 3}) return false end
     end
 
+    
     -- if all is well, we echo back a unique target event
     server:sendToPeer(getPeer(client), "triggerEvent", {unit.uid..'TargetSucceed', {}})
+    
+    -- before shipping out, we call the unitTargeted event
+    handleEvent("unitTargeted", {unit}, {unit, origin, data2})
   end)
 
   -- * same as above, but for tiles instead of units
@@ -431,6 +447,10 @@ function love.load()
   Gamestate.turnNumber = 1
   TimedEventQueue = {}
   TimedFuncQueue = {}
+
+  -- ! TESTING ONLY
+  Gamestate['Savant1VictoryTurn'] = 2
+
 
   server:on("useAction", function (data, client)
     local actionType, actionUser, reason = unpack(data)
@@ -497,7 +517,14 @@ function love.load()
       local asc = AscendantList[playerAscendant]
       if asc.victoryFunc(player) then
         local winner = getPeer(Players[player])
+        local loser
+        for _, player in pairs(Players) do
+          if player ~= winner then
+            loser = getPeer(Players[player])
+          end
+        end
         server:sendToPeer(winner, "youWin", {})
+        server:sendToPeer(loser, "youLose", {})
       end
     end
     -- increment the turn timer and activate any queued actions
@@ -508,7 +535,9 @@ function love.load()
     elseif client:getIndex() == 2 then newTurnTaker = 1 end
     CurrentTurnTaker = newTurnTaker
     print('It is now '..newTurnTaker.."'s turn.")
-    server:sendToAll("setPlayerTurn", newTurnTaker)
+    -- ! TESTING PURPOSES ONLY
+    -- ! CHANGE TO ("setPlayerTurn", newTurnTaker)
+    server:sendToAll("setPlayerTurn", 1)
   end)
  
   -- ! COMMUNICATE WITH CLIENT

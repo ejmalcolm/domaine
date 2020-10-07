@@ -1,25 +1,37 @@
+-- * screens
 menu = require("menu")
 board = require("board")
 buildArmy = require("buildArmy")
 unitPlacement = require("unitPlacement")
 connectScreen = require("ConnectScreen")
 chooseAscendant = require("chooseAscendant")
+victoryScreen = require("victoryScreen")
+defeatScreen = require("defeatScreen")
 
+-- * references
 unitList = require("references/unitList")
 unitSpecs = require("references/unitSpecs")
 ascendantList = require("references/ascendantList")
 
+-- * modules
 suit = require("modules/suit")
 inspect = require("modules/inspect")
 bitser = require("modules/bitser")
 local sock = require("modules/sock")
 
+-- * helpful variables and global functions
 local currentScreen
 
 -- TODO: optimization-- only call love.getDimensions() once in main.lua love.update, else we're being expensive for no reason
 
 function Round(n)
   return math.floor(n+.5)
+end
+
+-- * sleeps for t seconds
+function Sleep(t)
+  local sec = tonumber(os.clock() + t);
+  while (os.clock() < sec) do end
 end
 
 -- * temporary solution to adjust coordinates from the default res to different reses
@@ -208,9 +220,9 @@ function TriggerEvent(event, triggerArgs)
         end
       end
     end
-    func(unpack(args))
     -- clear the WaitingFor event
     WaitingFor[event] = nil
+    func(unpack(args))
   end
 end
 
@@ -250,8 +262,8 @@ function connectToHost(ip)
 
   -- * allows the server to trigger events
   client:on("triggerEvent", function(data)
-    print('triggerEvent', inspect(data))
     local event, triggerArgs = unpack(data)
+    print('Event triggered by server:', event)
     TriggerEvent(event, triggerArgs)
   end)
 
@@ -263,15 +275,23 @@ function connectToHost(ip)
   end)
 
   client:on("youWin", function(data)
-    CreateAlert('You win!!!!', 10)
-    changeScreen(menu)
+    CreateAlert('You win!!!!', 3)
+    CreateAlert('Unfortunately, you have to close the game now!', 7)
+    CreateAlert('WORKING ON IT I PROMISE', 20)
+    changeScreen(victoryScreen)
+  end)
+
+  client:on("youLose", function(data)
+    CreateAlert('You lose :( :( :(', 3)
+    CreateAlert('Unfortunately, you have to close the game now!', 7)
+    CreateAlert('WORKING ON IT I PROMISE', 20)
+    changeScreen(defeatScreen)
   end)
 
   client:on("callSpecFunc", function(data)
     local specRef, args = unpack(data)
-    print(specRef, args)
     args = args or {}
-    print(specRef, args)
+    print('Special called by server:', specRef)
     unitSpecs[specRef](unpack(args))
   end)
 
@@ -406,7 +426,7 @@ function love.draw()
     love.graphics.draw(PopUpBG, centerX-200, centerY-100)
     -- suit theme
     suit.theme.color = {
-      normal   = {bg = { 211/255, 211/255, 211/255}, fg = {0,0,0}},
+      normal   = {bg = { 1, 1, 1}, fg = {0,0,0}},
       hovered  = {bg = { 0.19,0.6,0.73}, fg = {1,1,1}},
       active   = {bg = {1,0.6,  0}, fg = {1,1,1}}
     }

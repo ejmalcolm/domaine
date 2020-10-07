@@ -176,13 +176,21 @@ special={shortDesc='ACTIVE: Target a Unit in this Tile. That Unit cannot act nex
 
 -- ! CONDUITS ! --
 
-unitList["Miserable"] = {1, 1, 2,
-canMove=true, canAttack=true, canSpecial = true,
-special={shortDesc='',
-         fullDesc='',
+unitList["Oppressed"] = {1, 1, 2,
+canMove=false, canAttack=false, canSpecial = true,
+special={shortDesc='When targeted by a Special, this Unit gains 1 Anger. When this Unit has three Anger, destroy all Units in their Tile and create 3 allied 3|3 Revolutionaries. This Unit cannot move or attack.',
+         fullDesc='When targeted by a Special, this Unit gains 1 Anger. When this Unit has three Anger, destroy all Units in their Tile and create 3 allied 3|3 Revolutionaries. This Unit cannot move or attack.',
          specRef=nil,
          tags={} } }
-unitList["Miserable"]["special"]["tags"]['unitTargeted|miserablePassive'] = true
+unitList["Oppressed"]["special"]["tags"]['unitTargeted|oppressedPassive'] = true
+unitList["Oppressed"]["special"]["tags"]['oppressedStorage|anger'] = 0
+
+  unitList["Revolutionary"] = {0, 3, 3,
+  canMove=true, canAttack=true, canSpecial=true,
+  special={shortDesc='This Unit was created by the Oppressed.',
+           fullDesc='This Unit was created by the Oppressed.',
+           specRef=nil,
+           tags={} } }
 
 unitList["Beacon"] = {1, 1, 2,
 canMove=true, canAttack=true, canSpecial = true,
@@ -190,7 +198,7 @@ special={shortDesc='Any allied Special can target Units in this Tile.',
          fullDesc='Any allied Special can target Units in this Tile.',
          specRef=nil,
          tags={} } }
-unitList["Beacon"]["special"]["tags"]['unitTargeted|beaconPassive'] = true
+unitList["Beacon"]["special"]["tags"]['unitTargetedInTile|beaconPassive'] = true
 
 unitList["Bargain"] = {1, 1, 2,
 canMove=true, canAttack=true, canSpecial = true,
@@ -212,6 +220,54 @@ special={shortDesc='ACTIVE: Target a Unit with an activated Special. Immediately
          fullDesc='ACTIVE: Target a Unit with an activated Special. Immediately activate that special with this Unit as the caster. At the start of the next turn, the Fool\'s special is blanked.',
          specRef='foolSpec',
          tags={} } }
+
+-- ! INCARNATES ! --
+
+unitList["Imperial Outpost"] = {0, 1, 2,
+canMove=false, canAttack=true, canSpecial = true,
+special={shortDesc = 'This Unit cannot move.',
+         fullDesc = 'This Unit cannot move.',
+         specRef = nil,
+         tags={} } }
+
+unitList["Legion"] = {0, 1, 1,
+canMove=true, canAttack=true, canSpecial = true,
+special={shortDesc = '',
+        fullDesc = '',
+        specRef = nil,
+        tags={} } }
+
+unitList["IMPERATOR"] = {0, 5, 5,
+canMove=true, canAttack=true, canSpecial = true,
+special={shortDesc = 'ACTIVE: Create a 1|1 Legion in this Tile.\nACTIVE: All Legions become X|X, where X is the number of Legions you control.',
+        fullDesc = 'ACTIVE: Create a 1|1 Legion in this Tile.\nACTIVE: All Legions become X|X, where X is the number of Legions you control.',
+        specRef = 'imperatorSpec',
+        tags={} } }
+
+unitList["FIRST PARALLEL"] = {0, 1, 6,
+canMove=true, canAttack=true, canSpecial = true,
+special={shortDesc = 'ACTIVE: Kill all Units with the same HP as the First Parallel, including itself.',
+        fullDesc = 'ACTIVE: Kill all Units with the same HP as the First Parallel, including itself.',
+        specRef = 'firstParallelSpec',
+        tags={} } }
+
+unitList["SECOND PARALLEL"] = {0, 6, 1,
+canMove=true, canAttack=true, canSpecial = true,
+special={shortDesc = 'ACTIVE: Swap the ATK and HP of all Units in this Tile.',
+        fullDesc = 'ACTIVE: Swap the ATK and HP of all Units in this Tile.',
+        specRef = 'secondParallelSpec',
+        tags={} } }
+
+unitList["SACRAMENT"] = {0, 5, 5,
+canMove=true, canAttack=true, canSpecial = true,
+special={shortDesc = [[This Unit counts as the Chosen.
+ACTIVE: Move to a horizontally adjacent tile.
+ACTIVE: Kill an allied Unit in this Tile. This Unit's stats increase by that Unit's stats.]],
+        fullDesc = [[This Unit counts as the Chosen.
+ACTIVE: Move to a horizontally adjacent tile.
+ACTIVE: Kill an allied Unit in this Tile. This Unit's ATK and HP are increased by that Unit's ATK and HP.]],
+        specRef = 'sacramentSpec',
+        tags={} } }
 
 
 return unitList

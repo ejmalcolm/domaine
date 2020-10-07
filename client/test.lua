@@ -1,5 +1,3 @@
-x = 'Chronomage1'
+local x
 
-local newID = string.match(x, '.*%D')
-
-print(newID)
+print(false or true)

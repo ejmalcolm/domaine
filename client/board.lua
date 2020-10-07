@@ -7,16 +7,34 @@ end
 function TileSelection()
   -- * creates a tile selection interface, with a button over each tile of the board
   -- * when a button is clicked, a "tileSelected" event is sent
-  -- first, we generate a button in each tile
+  local event
+  -- used if we want to change what event results from picking a tile
+  if AskingForTile == true then event = "tileSelected" else event = AskingForTile end
+  -- we generate a button in each tile
   local lanes = board.lanes
   for laneKey, lane in pairs(lanes) do
     for tileKey, tile in pairs(lane) do
+
+      -- we check if horizontalAdjacent
+      if (type(event) == 'table') and (event[1] == 'adjacentHorizontal') then
+        local casterTile = (event[2]).tile
+        local checkTile = laneKey..tileKey
+        local l1, t1 = casterTile:sub(1,1), casterTile:sub(2,2)
+        local l2, t2 = checkTile:sub(1,1), checkTile:sub(2,2)
+        local lanesAreAdjacent = adjacentLanes(l1, l2)
+        if (not lanesAreAdjacent) or (t1 ~= t2) then
+          goto next
+        end
+      end
+
       local tileX, tileY = AdjustCenter(tile.rect[1], 'X'), AdjustCenter(tile.rect[2], 'Y')
       local selectButton = suit.Button(laneKey..tileKey, tileX+40, tileY+40, 20, 20)
+      
       if selectButton.hit then
-        TriggerEvent("tileSelected", laneKey..tileKey)
         AskingForTile = false
+        TriggerEvent(event, laneKey..tileKey)
       end
+      ::next::
     end
   end
 end
@@ -71,6 +89,7 @@ function board.load()
   Gamestate['Ascendant'..playerNumber] = Gamestate['myAscendant']
   Gamestate['HasMajorPower'] = true
   Gamestate['HasMinorPower'] = true
+  Gamestate['Chosen1UnitsKilled'] = 0
   client:send('updateVar', {'Ascendant'..playerNumber, AscendantIndex})
 
 end
@@ -89,8 +108,6 @@ function board.update(dt)
 			-- create a Button for each unit inside
 			suit.layout:reset(AdjustCenter(tile.rect[1]+5, 'X'), AdjustCenter(tile.rect[2]+5, 'Y'))
 			for unitKey, unit in pairs(tile.content) do
-				-- each unit has the following format:
-				-- {uid= 'Rand0', name='Rand', player=1, cost=2, attack=3, health=6}
 				local uid = unit.uid
 				-- create the button representing this unit, w/ attached logic
 				if unit.player == playerNumber then
@@ -100,7 +117,6 @@ function board.update(dt)
 					-- when you click an allied unit
 					if allyButton.hit then
 						-- set it to the ActiveUnit
-						print('The active unit is: '.. uid)
             ActiveUnit = unit
             TriggerEvent("targetAlly", unit)
             TriggerEvent("targetUnit", unit)
@@ -110,7 +126,6 @@ function board.update(dt)
 					local enemyButton = EnemySuit:Button(unit.name, {id = uid}, suit.layout:row(90,17))
 					-- * logic for targeting enemy units
           if enemyButton.hit then
-            print('The active unit is: '..uid)
             ActiveUnit = unit
             TriggerEvent("targetEnemy", unit)
             TriggerEvent("targetUnit", unit)
@@ -133,7 +148,7 @@ function board.update(dt)
 
           -- ! CONTROL PANEL
           -- * overall, we only create the control panel if its our turn and if the activeUnit is allied
-          if isMyTurn() and ActiveUnit.player == playerNumber then
+          if isMyTurn() and (ActiveUnit.player == playerNumber) then
             -- ! MOVE BUTTONS
             if (ActionsRemaining.secondary >= 1) and ActiveUnit.canMove then
               -- ? repeated code here, could possibly be optimized
@@ -149,8 +164,7 @@ function board.update(dt)
                   local newTileRef = laneKey..newTileKey
                   -- then, send the move message to the server
                   client:send("unitMove", {unit, tileRef, newTileRef})
-                  -- use a secondary action
-                  client:send("useAction", {'secondary', unit, "unitMove"})
+                  -- TODO: action
                 end
               end
               if tileKey ~= 3 then
@@ -164,8 +178,7 @@ function board.update(dt)
                   local newTileRef = laneKey..newTileKey
                   -- then, send the move message to the server
                   client:send("unitMove", {unit, tileRef, newTileRef})
-                  -- use a secondary action
-                  client:send("useAction", {'secondary', unit, "unitMove"})
+                  -- TODO: action
                 end
               end
 
@@ -195,6 +208,23 @@ function board.update(dt)
                 CreateAlert('Select an attack target.', 5)
                 -- queue up an attack  on a enemyTarget
                 WaitFor("targetEnemy", client.send, {client, "unitAttack", {unit, 'triggerArgs'} })
+              end
+            end
+
+            -- ! IMPERATOR BRIDGE
+            if (ActionsRemaining.secondary >= 1) and ActiveUnit.canMove and ActiveImperatorBridge then
+              local tileRef = laneKey..tileKey
+              if (ActiveImperatorBridge[1] == tileRef) or (ActiveImperatorBridge[2] == tileRef) then
+                -- spacer
+                CPanelSuit:Label('', CPanelSuit.layout:row(3,3))
+                -- draw the bridge icon
+                local bridgeButton = CPanelSuit:Button('Br', CPanelSuit.layout:row(20,20))
+                if bridgeButton.hit then
+                  local tileToTravelTo
+                  if ActiveImperatorBridge[1] == tileRef then tileToTravelTo = ActiveImperatorBridge[2]
+                  elseif ActiveImperatorBridge[2] == tileRef then tileToTravelTo = ActiveImperatorBridge[1] end
+                  client:send("unitMove", {unit, tileRef, tileToTravelTo})
+                end
               end
             end
           end
@@ -263,6 +293,11 @@ function board.update(dt)
     end
     -- incarnate
     local incarnate = APanelSuit:Button('Incarnate', APanelSuit.layout:col(100,20))
+    if incarnate.hit then
+      local ascIndex = Gamestate['Ascendant'..playerNumber]
+      local asc = ascendantList[ascIndex]
+      asc.incarnateFunc()
+    end
     -- info button
     local infoButton = APanelSuit:Button('?', APanelSuit.layout:col(20,20))
     if infoButton.hit then
