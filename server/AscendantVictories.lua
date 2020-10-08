@@ -1,9 +1,8 @@
 local AscendantVictories = {}
 
 local function sacramentVictory(player)
-  if Matchstate['Chosen'..playerNumber] then
-    return Gamestate['Chosen'..playerNumber]['unitsKilled'] >= 3
-  end
+  local ChosenKillCount = MatchState['Player'..player]['ChosenKillCount'] or 0
+  return ChosenKillCount >= 3
 end
 
 AscendantVictories[1] = {
@@ -23,7 +22,6 @@ local function imperatorVictory(player)
       if hasOutpost then outpostCount = outpostCount + 1 end
     end
   end
-  print('outpost count', outpostCount)
   return outpostCount >= 3
 end
 
@@ -47,7 +45,7 @@ AscendantVictories[4] = {
 }
 
 local function savantVictory(player)
-  if Gamestate.turnNumber == Gamestate['Savant'..player..'VictoryTurn'] then
+  if MatchState.turnNumber == MatchState['Player'..player]['SavantVictoryTurn'] then
     local alliedUnits, enemyUnits = 0, 0
     for _, lane in pairs(MasterLanes) do
       for _, tile in pairs(lane) do

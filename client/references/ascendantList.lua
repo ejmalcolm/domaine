@@ -2,7 +2,7 @@ local ascendantList = {}
 
 local function sacramentMajor()
   -- * first, we create a popup window with the names of each unit that has died this game
-  local DeadUnits = Gamestate['DeadUnits'] or {}
+  local DeadUnits = MatchState['DeadUnits'] or {}
   local DeadNames = {}
 
   -- get a table of all the names of the dead units
@@ -44,9 +44,9 @@ local function sacramentIncarnate()
 end
 
 local function sacramentVictory()
-  if Gamestate['Chosen'..playerNumber] then
-    return Gamestate['Chosen'..playerNumber]['unitsKilled'] >= 3
-  end
+  -- if Gamestate['Chosen'..playerNumber] then
+  --   return Gamestate['Chosen'..playerNumber]['unitsKilled'] >= 3
+  -- end
 end
 
 ascendantList[1] = {
@@ -383,7 +383,7 @@ local function savantIncarnate()
 end
 
 local function savantVictory(player)
-  if Gamestate.turnNumber == Gamestate['Savant'..player..'VictoryTurn'] then
+  if MatchState.turnNumber == MatchState['Savant'..player..'VictoryTurn'] then
     local alliedUnits, enemyUnits = 0, 0
     for _, lane in pairs(MasterLanes) do
       for _, tile in pairs(lane) do
@@ -400,6 +400,11 @@ local function savantVictory(player)
   else
     return false
   end
+end
+
+local function savantOnMatchConnect()
+  print('called')
+  CreateSliderPopup('Choose which turn you wish to declare victory.')
 end
 
 ascendantList[5] = {
@@ -419,7 +424,8 @@ ascendantList[5] = {
   ]],
   incarnateFunc=savantIncarnate,
   victoryText='At the start of the game, pick a turn number greater than 5. On that turn, if you have more Units than your opponent, you win. Otherwise, you lose.',
-  victoryFunc=savantVictory
+  victoryFunc=savantVictory,
+  onMatchStartFunc=savantOnMatchConnect
 }
 
 return ascendantList

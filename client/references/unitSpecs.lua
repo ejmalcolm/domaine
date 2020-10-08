@@ -795,10 +795,14 @@ local function chosenPassive(caster)
       client:send("modifyUnitTable", {caster, 'health', newHP})
     end
   end, {'triggerArgs'})
+
+
   -- increment the kills by chosen
-  local newKillCount = Gamestate['Chosen'..playerNumber..'UnitsKilled'] + 1
-  Gamestate['Chosen'..playerNumber..'UnitsKilled'] = newKillCount
-  client:send("updateVar", {'Chosen'..playerNumber..'UnitsKilled'}, newKillCount)
+  local oldKillCount = GetPlayerVar('ChosenKillCount') or 0
+  local newKillCount = oldKillCount + 1
+  MatchState['Player'..playerNumber]['ChosenKillCount'] = newKillCount
+  client:send("updatePlayerVar", {'ChosenKillCount', newKillCount})
+
 end
 
 unitSpecs["chosenPassive"] = chosenPassive

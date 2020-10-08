@@ -25,21 +25,7 @@ function ConnectScreen.update(dt)
 
   -- label above ipInput
   suit.Label('Enter the host IP here.', centerX-150, centerY-80, 300, 30)
-
-  -- -- check if the server is Ready
-  -- -- this has to be outside the connectButton logic because else changeScreen happens
-  -- -- before the server and client are acutally revved up/ready to go
-  -- if BothPlayersReady then
-  --     -- one at a time, add each unit from unitPlacement into the matching starting Tile
-  --     for _, tile in pairs({'r', 'y', 'g'}) do
-  --         for _, unit in pairs(unitPlacement.pRects[tile].content) do
-  --             client:send("createUnitOnTile", {unit, tile..'A'})
-  --         end
-  --     end
-  --     -- set screen to board once everything's ready
-  --     changeScreen(board)
-  -- end
-
+  
   -- button to connect
   local connectButton = suit.Button('Connect', centerX-50, centerY-10, 100, 20)
   -- logic for hitting the button

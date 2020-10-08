@@ -1,5 +1,5 @@
 local sock = require "sock"
-local inspect = require("inspect")
+inspect = require("inspect")
 
 UnitList = require("unitList")
 AscendantVictories = require("AscendantVictories")
@@ -185,7 +185,7 @@ function love.load()
   Players = {}
 
   MatchState = {}
-  MatchState.StorageFields = { DeadUnits={} }
+  MatchState.DeadUnits = {}
   MatchState.Player1 = {}
   MatchState.Player2 = {}
 
@@ -487,7 +487,7 @@ function love.load()
   -- ! TURN SYSTEM & QUEUEING ACTIONS
 
   CurrentTurnTaker = 1 -- what player number starts the game
-  MatchState.turnNumber = 1
+  MatchState.turnNumber = 0
   TimedEventQueue = {}
   TimedFuncQueue = {}
 
@@ -496,7 +496,7 @@ function love.load()
     server:sendToPeer(getPeer(client), "actionUsed", actionType)
   end)
 
-  local function advanceTurnTimer()
+  function advanceTurnTimer()
     -- advance the turn number
     MatchState.turnNumber = MatchState.turnNumber + 1
     server:sendToAll("updateVar", {'global', 'turnNumber', MatchState.turnNumber})
@@ -559,11 +559,14 @@ function love.load()
         local loser
         for _, player in pairs(Players) do
           if player ~= winner then
+            -- ! TESTING
+            goto TESTINGONLY
             loser = getPeer(Players[player])
+            ::TESTINGONLY::
           end
         end
         server:sendToPeer(winner, "youWin", {})
-        server:sendToPeer(loser, "youLose", {})
+        -- ! TESTING server:sendToPeer(loser, "youLose", {})
       end
     end
     -- increment the turn timer and activate any queued actions
@@ -581,10 +584,13 @@ function love.load()
  
   -- ! COMMUNICATE WITH CLIENT
 
-  -- server:on("updateVar", function(data)
-  --   local varName, varValue = data[1], data[2]
-  --   MatchState[varName] = varValue
-  --   end)
+  server:on("updatePlayerVar", function(data, client)
+    print('Received updatePlayerVar')
+    local field, value = unpack(data)
+    local player = getPlayer(client)
+    local PlayerState = MatchState['Player'..player]
+    PlayerState[field] = value
+    end)
 
 end
 
@@ -593,6 +599,7 @@ function love.update(dt)
   if Players[1] and Players[2] and not MatchStarted then
     server:sendToAll("startMatch", MatchState)
     MatchStarted = true
+    advanceTurnTimer()
   end
 
   server:update()

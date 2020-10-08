@@ -162,6 +162,47 @@ function UpdatePopupDisplays(dt)
   end
 end
 
+function CreateSliderPopup(title)
+  SliderPopupStorage = {value = 5, min=5, max=50, step=1}
+  SliderPopups[title] = {true}
+end
+
+function UpdateSliderPopups(dt)
+  -- * updates a popup menu over the center of the screen with a bunch of options
+  for title, active in pairs(SliderPopups) do
+    if active then
+      ActiveSliderPopup = true
+      -- draw the title
+      SliderPopupSuit.layout:reset(centerX-100, centerY-100)
+      SliderPopupSuit:Label(title, SliderPopupSuit.layout:col(200,20))
+      -- take in account the border
+      SliderPopupSuit.layout:reset(centerX-150, centerY-59)
+      SliderPopupSuit.layout:padding(1)
+      -- ! cancel button in the top right
+      SliderPopupSuit.layout:reset(centerX+179, centerY-95)
+      local cancelButton = SliderPopupSuit:Button('X', SliderPopupSuit.layout:row(20,20))
+      if cancelButton.hit then SliderPopups[title] = false return end
+      -- ! display the Slider
+      SliderPopupSuit.layout:reset(centerX-100, centerY-40)
+      SliderPopupSuit:Slider(SliderPopupStorage, SliderPopupSuit.layout:row(200,20))
+      -- ! above the slider, display the current value
+      local roundedValue = Round(SliderPopupStorage.value)
+      SliderPopupSuit:Label('Current Value: '..roundedValue, SliderPopupSuit.layout:up())
+      -- ! below the slider, button to submit the current value
+      SliderPopupSuit.layout:reset(centerX-25, centerY-15)
+      local submitButton = SliderPopupSuit:Button('Submit', SliderPopupSuit.layout:row(50,20))
+      if submitButton.hit then
+        TriggerEvent("sliderInput", roundedValue)
+        SliderPopups[title] = false
+        return
+      end
+    else
+      ActiveSliderPopup = false
+      PopupMenus[title] = nil
+    end
+end
+end
+
 function WaitFor(event, func, args)
   -- this is essentially a client-side queueing function
   -- takes an event, a certain string e.g. "targetEnemy", and a function object
@@ -271,6 +312,10 @@ function connectToHost(ip)
     MatchState = data
     -- set screen to board once everything's ready
     changeScreen(board)
+    -- call any onMatchStart functions
+    local ascIndex = GetPlayerVar('AscendantIndex')
+    local asc = ascendantList[ascIndex]
+    if asc.onMatchStartFunc then asc.onMatchStartFunc() end
   end)
 
   -- ! SERVER-TO-CLIENT COMMUNICATION
@@ -360,7 +405,6 @@ end
 
 -- ! LOVE loops and game events
 
-
 function love.load()
   -- used as a queueing system for WaitFor() events
   WaitingFor = {}
@@ -374,6 +418,9 @@ function love.load()
   -- used for infopanels
   PopupDisplaySuit = suit.new()
   PopupDisplays = {}
+  -- used for Slider popups
+  SliderPopupSuit = suit.new()
+  SliderPopups = {}
   -- basic settings
   love.keyboard.setKeyRepeat(true)
   love.window.setTitle('Domaine')
@@ -401,16 +448,24 @@ end
 function love.update(dt)
   -- * quit the game with escape!
   if love.keyboard.isDown('escape') then love.event.quit() end
+
     -- control the multiplayer stuff
   if Connected then
     client:update()
   end
+
   -- create and increment duration of Popup menus
   UpdatePopups(dt)
+
   -- create and increment duration of Alert buttons
   UpdateAlerts(dt)
+
   -- create and increment duration of Info panels
   UpdatePopupDisplays(dt)
+
+  -- create SliderPopups
+  UpdateSliderPopups()
+
   -- get coordinates
   x, y = love.graphics.getDimensions()
   centerX = Round(x/2)
@@ -458,7 +513,7 @@ function love.draw()
   end
 
   if ActivePopupDisplay then
-    -- background of popup
+    -- border and bg of popup
     love.graphics.rectangle('fill', centerX-200, centerY-100, 400, 200)
     love.graphics.draw(PopUpBG, centerX-200, centerY-100)
     -- suit theme
@@ -468,6 +523,21 @@ function love.draw()
       active   = {bg = {1,0.6,0}, fg = {1,1,1}}
     }
     PopupDisplaySuit:draw()
+    -- reset color
+    love.graphics.setColor(255,255,255)
+  end
+
+  if ActiveSliderPopup then
+    -- background of popup
+    love.graphics.rectangle('fill', centerX-200, centerY-100, 400, 200)
+    love.graphics.draw(PopUpBG, centerX-200, centerY-100)
+    -- suit theme
+    suit.theme.color = {
+      normal   = {bg = {.9,.9,.9}, fg = {0,0,0}},
+      hovered  = {bg = { 0.19,0.6,0.73}, fg = {1,1,1}},
+      active   = {bg = {1,0.6,0}, fg = {1,1,1}}
+    }
+    SliderPopupSuit:draw()
     -- reset color
     love.graphics.setColor(255,255,255)
   end
