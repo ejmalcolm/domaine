@@ -373,7 +373,14 @@ local function savantMinor()
   end, {'triggerArgs'})
 end
 
-local function savantIncarnate() end
+local function savantIncarnate()
+  CreateAlert('Select a Tile to Incarnate at.', 3)
+
+  AskingForTile = true
+  WaitFor("tileSelected", function(tileRef1)
+    client:send("createUnitOnTile", {'SAVANT', tileRef1})
+  end, {'triggerArgs'})
+end
 
 local function savantVictory(player)
   if Gamestate.turnNumber == Gamestate['Savant'..player..'VictoryTurn'] then
@@ -389,7 +396,6 @@ local function savantVictory(player)
         end
       end
     end
-    print(alliedUnits, enemyUnits)
     return alliedUnits > enemyUnits
   else
     return false
@@ -403,8 +409,15 @@ ascendantList[5] = {
   majorFunc=savantMajor,
   minorText='Remove a chosen Unit from the game. In two turns, that Unit returns to the game exactly as it left.',
   minorFunc=savantMinor,
-  incarnateText='coming soon',
-  incarnateFunc=nil,
+  incarnateText=[[SAVANT
+  3|2
+  ACTIVE: Create one of the following in this Tile:
+    Tripwire: 0|1 When a Unit enters this Tile, they take 1 damage.
+    Hologram: 0|1 This Unit cannot be damaged by attacks.
+    Railgun: 0|1 ACTIVE: Kill this Unit. Target ally in this Tile gains +2 ATK.
+  ACTIVE: Remove this Unit from the board and restore your Incarnate ability.
+  ]],
+  incarnateFunc=savantIncarnate,
   victoryText='At the start of the game, pick a turn number greater than 5. On that turn, if you have more Units than your opponent, you win. Otherwise, you lose.',
   victoryFunc=savantVictory
 }

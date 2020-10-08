@@ -269,5 +269,42 @@ ACTIVE: Kill an allied Unit in this Tile. This Unit's ATK and HP are increased b
         specRef = 'sacramentSpec',
         tags={} } }
 
+unitList["SAVANT"] = {0, 3, 2,
+canMove=true, canAttack=true, canSpecial = true,
+special={shortDesc = [[ACTIVE: Create a Tripwire, Hologram, or Railgun in this Tile.
+ACTIVE: Remove this Unit from the board and restore your Incarnate Power.]],
+        fullDesc = [[ACTIVE: Create one of the following in this Tile:
+  Tripwire: 0|1 When a Unit enters this Tile, they take 1 damage.
+  Hologram: 0|1 This Unit cannot be damaged by attacks.
+  Railgun: 0|1 ACTIVE: Kill this Unit. Target ally in this Tile gains +2 ATK.
+ACTIVE: Remove this Unit from the board and restore your Incarnate Power.]],
+        specRef = 'savantSpec',
+        tags={} } }
+
+unitList["Tripwire"] = {0, 0, 1,
+canMove = false, canAttack = false, canSpecial = false,
+special ={
+          shortDesc='When a Unit enters this Tile, they take 1 damage.',
+          fullDesc='When a Unit enters this Tile, they take 1 damage.',
+          specRef=nil,
+          tags= {} } }
+unitList["Tripwire"]["special"]["tags"]['unitMoveIn|tripwirePassive'] = true
+
+unitList["Hologram"] = {0, 0, 1,
+canMove = false, canAttack = false, canSpecial = false,
+special ={
+          shortDesc='This Unit cannot be targeted by attacks.',
+          fullDesc='This Unit cannot be targeted by attacks.',
+          specRef=nil ,
+          tags= {} } }
+unitList["Hologram"]["special"]["tags"]['cannotBeAttacked'] = true
+
+unitList["Railgun"] = {0, 0, 1,
+canMove = false, canAttack = false, canSpecial = true,
+special ={
+          shortDesc='ACTIVE: Kill this Unit. Target ally in this Tile gains +2 ATK.',
+          fullDesc='ACTIVE: Kill this Unit. Target ally in this Tile gains +2 ATK.',
+          specRef='railgunSpec',
+          tags= {} } }
 
 return unitList

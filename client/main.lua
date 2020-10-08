@@ -7,6 +7,7 @@ connectScreen = require("ConnectScreen")
 chooseAscendant = require("chooseAscendant")
 victoryScreen = require("victoryScreen")
 defeatScreen = require("defeatScreen")
+WaitingScreen = require("WaitingScreen")
 
 -- * references
 unitList = require("references/unitList")
@@ -96,9 +97,9 @@ function UpdatePopups(dt)
       -- option buttons
       for k,v in pairs(PopupMenus[title][2]) do
         if k % 3 == 1 then
-          PopupSuit.layout:reset(centerX-150, (centerY-59)+(20*(k/3)) )
+          PopupSuit.layout:reset(centerX-150, (centerY-59)+(40*(k/3)) )
         end
-        local choiceButton = PopupSuit:Button(v, PopupSuit.layout:col(100,20))
+        local choiceButton = PopupSuit:Button(v, PopupSuit.layout:col(100,40))
         -- when clicked, trigger the given event and then end
         if choiceButton.hit then
           TriggerEvent(PopupMenus[title][3], v)
@@ -247,9 +248,29 @@ function connectToHost(ip)
   --for getting the player index (p1 or p2)
   client:on("setUpGame", function(num)
     playerNumber = num
-    print('Client number: '..playerNumber)
-    -- once the client knows what number it is, it's ready to go
-    Ready = true
+    print('Client player number: '..playerNumber)
+    -- send over the pregame data
+    PreMatchData['HasMajorPower'] = true
+    PreMatchData['HasMinorPower'] = true
+    PreMatchData['HasIncarnatePower'] = true
+    PreMatchData['ActionTable'] = {1, 1, 1}
+    client:send("transferPreMatchData", PreMatchData)
+    -- send to waiting screen
+    changeScreen(WaitingScreen)
+  end)
+
+  -- * launches the actual match, switches to board
+  client:on("startMatch", function(data)
+    -- one at a time, add each unit from unitPlacement into the matching starting Tile
+    for _, tile in pairs({'r', 'y', 'g'}) do
+      for _, unit in pairs(unitPlacement.pRects[tile].content) do
+          client:send("createUnitOnTile", {unit, tile..'A'})
+      end
+    end
+    -- initialize the MatchState
+    MatchState = data
+    -- set screen to board once everything's ready
+    changeScreen(board)
   end)
 
   -- ! SERVER-TO-CLIENT COMMUNICATION
@@ -267,11 +288,15 @@ function connectToHost(ip)
     TriggerEvent(event, triggerArgs)
   end)
 
-  -- * used to update the Gamestate table, used to track global, game-level data
+  -- * used to update the MatchState table
   client:on("updateVar", function(data)
-    local varName, varValue = data[1], data[2]
-    print('gamestate var updated', varName, varValue)
-    Gamestate[varName] = varValue
+    local scope, field, value = unpack(data)
+    print('Updated MatchState:', scope, field, value)
+    if scope == 'global' then
+      MatchState[field] = value
+    elseif scope == 'player' then
+      MatchState['Player'..playerNumber] = value
+    end
   end)
 
   client:on("youWin", function(data)
@@ -337,9 +362,6 @@ end
 
 
 function love.load()
-  -- used to manage game data
-  Gamestate = {}
-  Gamestate.turnNumber = 1
   -- used as a queueing system for WaitFor() events
   WaitingFor = {}
   -- used to draw temporary alerts

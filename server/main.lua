@@ -2,10 +2,7 @@ local sock = require "sock"
 local inspect = require("inspect")
 
 UnitList = require("unitList")
-AscendantList = require("ascendantList")
-
--- initialize the game
-Gamestate = {DeadUnits={}}
+AscendantVictories = require("AscendantVictories")
 
 function CreateMasterLanes()
 	MasterLanes = {}
@@ -156,9 +153,9 @@ function handleEvent(eventName, unitsInvolved, data)
 
   if eventName == 'unitDeath' then
     for _, unit in pairs(unitsInvolved) do
-      table.insert(Gamestate.DeadUnits, unit)
+      table.insert(MatchState.DeadUnits, unit)
     end
-    server:sendToAll("updateVar", {'DeadUnits', Gamestate.DeadUnits})
+    server:sendToAll("updateVar", {'global', 'DeadUnits', MatchState.DeadUnits})
   end
 
   for _, unit in pairs(unitsInvolved) do
@@ -183,23 +180,37 @@ function love.load()
   tickRate = 1/120
   tick = 0
 
-  server = sock.newServer("*", 22122, 2)
+  server = sock.newServer("*", 22122, 2, 10)
 
   Players = {}
 
+  MatchState = {}
+  MatchState.StorageFields = { DeadUnits={} }
+  MatchState.Player1 = {}
+  MatchState.Player2 = {}
+
   server:on("connect", function(data, client)
-    print('Client connected')
+    print('Connection received from client.')
     -- Decide if the client is Player 1 or Player 2
     -- Set "Ready" to true (starts the game)
+    local index
     if Players[1] then
-      print('Player 2 assigned.')
-      Players[2] = client
-      client:send("setUpGame", 2)
+      index = 2
     else
-      print('Player 1 assigned.')
-      Players[1] = client
-      client:send("setUpGame", 1)
+      index = 1
     end
+    -- Tell client to what player it is, sets client Ready to true
+    Players[index] = client
+    client:send("setUpGame", index)
+  end)
+
+  server:on("transferPreMatchData", function(PreMatchData, client)
+    print('Receieved transferPreMatchData')
+    local pNum = getPlayer(client)
+    MatchState['Player'..pNum] = PreMatchData
+    -- !FOR TESTING ONLY
+    Players[2] = true
+    MatchState['Player2'] = {ActionTable={1,1,1},AscendantIndex=2,HasIncarnatePower=true,HasMajorPower=true,HasMinorPower=true}
   end)
 
   -- used to keep track of how many unit there are
@@ -310,6 +321,8 @@ function love.load()
     end
     ::skipRange::
 
+    -- unit damaged by event
+    handleEvent("unitDamaged", {defender, attacker}, {'attack', defender, attacker})
 
     if newDefenderHP <= 0 then
       -- * if the HP is zero or below, kill them
@@ -391,6 +404,27 @@ function love.load()
     server:sendToAll("updateLanes", MasterLanes)
   end)
 
+  -- * finds a unit by ID, then modifies that unit's table
+  -- * useful when a unit may have moved in between the event call and this function
+  server:on("modifyUnitTableByID", function(data, client)
+    print('Received modifyUnitTableByID')
+    local UID, field, newValue = unpack(data)
+    assert(UID, 'UID missing in a client modifyUnitTable call.')
+    -- find the unit in place, set the new value
+    local unit = FindUnitByID(UID)
+    local tile = tileRefToTile(unit.tile)
+    local index = findUnitIndex(unit, tile)
+    -- first we check that the unit exists. if it doesn't and we try to change, it'll crash
+    if not tile.content[index] then print('modifyunittable error') return false end
+    tile.content[index][field] = newValue
+    -- if health, we have to check for death
+    if (field == 'health') and newValue <= 0 then
+      server:sendToAll("createAlert", {unit.name..' was killed.', 5})
+      removeUnitFromTile(unit, unit.tile)
+    end
+    server:sendToAll("updateLanes", MasterLanes)
+  end)
+
   -- * used to examine whether a given unit is a valid target for a certain set of conditions
   server:on("unitTargetCheck", function(data, client)
     -- * unit is a unit table.
@@ -405,6 +439,15 @@ function love.load()
       handleEvent("unitTargetedInTile", {neighbour}, {neighbour, unit, data2})
     end
 
+    -- ! attack check
+    if conditions.canBeAttacked ~= nil then
+      local specTable = unit.specTable
+      local tags = specTable.tags
+      if tags.cannotBeAttacked == true then
+        server:sendToPeer(getPeer(client), "createAlert", {'Target cannot be attacked', 3})
+        return false
+      end
+    end
 
     -- ! vertical distance between
     if conditions.distanceBetweenIs ~= nil then
@@ -434,7 +477,7 @@ function love.load()
     -- if all is well, we echo back a unique target event
     server:sendToPeer(getPeer(client), "triggerEvent", {unit.uid..'TargetSucceed', {}})
     
-    -- before shipping out, we call the unitTargeted event
+    -- before ending, we call the unitTargeted event
     handleEvent("unitTargeted", {unit}, {unit, origin, data2})
   end)
 
@@ -444,13 +487,9 @@ function love.load()
   -- ! TURN SYSTEM & QUEUEING ACTIONS
 
   CurrentTurnTaker = 1 -- what player number starts the game
-  Gamestate.turnNumber = 1
+  MatchState.turnNumber = 1
   TimedEventQueue = {}
   TimedFuncQueue = {}
-
-  -- ! TESTING ONLY
-  Gamestate['Savant1VictoryTurn'] = 2
-
 
   server:on("useAction", function (data, client)
     local actionType, actionUser, reason = unpack(data)
@@ -459,23 +498,23 @@ function love.load()
 
   local function advanceTurnTimer()
     -- advance the turn number
-    Gamestate.turnNumber = Gamestate.turnNumber + 1
-    server:sendToAll("updateVar", {'turnNumber', Gamestate.turnNumber})
-    print('Turn Number:', Gamestate.turnNumber)
+    MatchState.turnNumber = MatchState.turnNumber + 1
+    server:sendToAll("updateVar", {'global', 'turnNumber', MatchState.turnNumber})
+    print('Turn Number:', MatchState.turnNumber)
 
     -- check if there's anything in the EventQueue for this turn
-    if not TimedEventQueue[Gamestate.turnNumber] then goto noEvents end
+    if not TimedEventQueue[MatchState.turnNumber] then goto noEvents end
     -- if there is, call those events
-    for _, eventsTable in pairs(TimedEventQueue[Gamestate.turnNumber]) do
+    for _, eventsTable in pairs(TimedEventQueue[MatchState.turnNumber]) do
       local event, args = unpack(eventsTable)
       server:sendToAll("triggerEvent", {event, args})
     end
     ::noEvents::
 
     -- check if there's anything for the FuncQueue for this turn
-    if not TimedFuncQueue[Gamestate.turnNumber] then return end
+    if not TimedFuncQueue[MatchState.turnNumber] then return end
     -- if there is, call those funcs
-    for _, funcTable in pairs(TimedFuncQueue[Gamestate.turnNumber]) do
+    for _, funcTable in pairs(TimedFuncQueue[MatchState.turnNumber]) do
       local func, args = unpack(funcTable)
       func(unpack(args))
     end
@@ -483,7 +522,7 @@ function love.load()
 
   -- * server-side version of below. triggers a server function instead of an event
   function queueTimedFunc(func, turnsFromNow, args)
-    local triggerTurn = Gamestate.turnNumber + turnsFromNow
+    local triggerTurn = MatchState.turnNumber + turnsFromNow
     if TimedFuncQueue[triggerTurn] then
       -- if there's already an func(s) queued for that turn, add to that table
       table.insert(TimedFuncQueue[triggerTurn], {func, args})
@@ -497,7 +536,7 @@ function love.load()
   server:on("queueTimedEvent", function(data, client)
     print('Received queueTimedEvent')
     local event, turnsFromNow, args = unpack(data)
-    local triggerTurn = Gamestate.turnNumber + turnsFromNow
+    local triggerTurn = MatchState.turnNumber + turnsFromNow
     if TimedEventQueue[triggerTurn] then
       -- if there's already an event(s) queued for that turn, add to that table
       table.insert(TimedEventQueue[triggerTurn], {event, args})
@@ -513,8 +552,8 @@ function love.load()
     print('Received endMyTurn')
     -- check if victory condition is achieved
     for player,_ in pairs(Players) do
-      local playerAscendant = Gamestate['Ascendant'..player]
-      local asc = AscendantList[playerAscendant]
+      local ascIndex = MatchState['Player'..player]['AscendantIndex']
+      local asc = AscendantVictories[ascIndex]
       if asc.victoryFunc(player) then
         local winner = getPeer(Players[player])
         local loser
@@ -542,14 +581,20 @@ function love.load()
  
   -- ! COMMUNICATE WITH CLIENT
 
-  server:on("updateVar", function(data)
-    local varName, varValue = data[1], data[2]
-    Gamestate[varName] = varValue
-    end)
+  -- server:on("updateVar", function(data)
+  --   local varName, varValue = data[1], data[2]
+  --   MatchState[varName] = varValue
+  --   end)
 
 end
 
 function love.update(dt)
+
+  if Players[1] and Players[2] and not MatchStarted then
+    server:sendToAll("startMatch", MatchState)
+    MatchStarted = true
+  end
+
   server:update()
 end
 

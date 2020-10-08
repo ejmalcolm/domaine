@@ -1,6 +1,9 @@
 local chooseAscendant = {}
 
 function chooseAscendant.load()
+  -- start "saving" pregame data
+  PreMatchData = {}
+
   -- default ascendant
   AscendantIndex = 1
 
@@ -35,20 +38,21 @@ function chooseAscendant.update(dt)
   -- previous Ascendant button
   local prevAscendant = suit.Button('<', suit.layout:col(20,20))
   if prevAscendant.hit then
-    AscendantIndex = ((AscendantIndex-1) % #ascendantList)
+    AscendantIndex = AscendantIndex-1
     if AscendantIndex == 0 then AscendantIndex=5 end
   end
 
   -- button to select an Ascendant
   local selectButton = suit.Button(ChosenAscendant.name, suit.layout:col(150,20))
   if selectButton.hit then
-    Gamestate['myAscendant'] = AscendantIndex
+    PreMatchData['AscendantIndex'] = AscendantIndex
   end
 
   -- next Ascendant button
   local nextAscendant = suit.Button('>', suit.layout:col(20,20))
   if nextAscendant.hit then
-    AscendantIndex = (AscendantIndex + 1) % #ascendantList+1
+    AscendantIndex = (AscendantIndex + 1)
+    if AscendantIndex == (#ascendantList+1) then AscendantIndex = 1 end
   end
 
   -- -- ! DISPLAY ABILITIES
@@ -81,7 +85,7 @@ function chooseAscendant.update(dt)
 
   suit.layout:reset(centerX-75,y-40)
   suit.layout:padding(5)
-  if Gamestate['myAscendant'] then
+  if PreMatchData['AscendantIndex'] then
     if suit.Button('Finalize Selection', suit.layout:row(150,20)).hit then
       changeScreen(buildArmy)
     end

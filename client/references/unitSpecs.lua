@@ -636,12 +636,12 @@ local function bargainSpec(caster)
   CreateAlert('Target an allied unit.', 3)
   WaitFor("targetAlly", function(targetAlly)
     client:send("unitTargetCheck", {targetAlly, caster, {distanceBetweenIs=0, canTargetSelf=false}, {"bargainSpec", "targetAlly"} })
-    WaitFor(targetAlly.uid.."TargetSucceed", function()
+    WaitFor((targetAlly.uid).."TargetSucceed", function()
       -- get list of all units
       local unitNames = {}
       -- add new names to unitList
-      for name, _ in pairs(unitList) do
-        table.insert(unitNames, name)
+      for name, unit in pairs(unitList) do
+        if unit[1] ~= 0 then table.insert(unitNames, name) end
       end
       CreatePopup('Select a Unit.', unitNames, 120, "unitSelected")
 
@@ -836,5 +836,59 @@ local function sacramentSpec(caster)
 end
 
 unitSpecs["sacramentSpec"] = sacramentSpec
+
+-- ! SAVANT
+
+local function savantSpec(caster)
+  CreatePopup('Select a Special.', {'Create Invention', 'Un-Incarnate'}, 120, "optionSelected")
+  
+  WaitFor("optionSelected", function(option)
+    
+    if option == 'Create Invention' then
+      CreatePopup('Select an invention.', {'Tripwire', 'Railgun', 'Hologram'}, 120, "optionSelected")
+
+      WaitFor("optionSelected", function(option2)
+        client:send("createUnitOnTile", {option2, caster.tile})
+      end, {'triggerArgs'})
+
+
+    elseif option == 'Un-Incarnate' then
+      client:send("removeUnitFromTile", {caster})
+      -- TODO: restore incarnate ability
+    end
+
+  end, {'triggerArgs'})
+end
+
+unitSpecs["savantSpec"] = savantSpec
+
+local function tripwirePassive(mover, oldTileRef, newTileRef)
+  -- TODO: unit damage event
+  client:send("modifyUnitTableByID", {mover.uid, 'health', (mover.health - 1) })
+end
+
+unitSpecs["tripwirePassive"] = tripwirePassive
+
+local function railgunSpec(caster)
+  CreateAlert('Target allied Unit to buff.', 3)
+
+  WaitFor("targetAlly", function(targetAlly)
+
+    -- check validity
+    client:send("unitTargetCheck", {targetAlly, caster, {distanceBetweenIs=0}, {} })
+
+    WaitFor(targetAlly.uid.."TargetSucceed", function()
+
+      local newATK = targetAlly.attack + 2
+      client:send("modifyUnitTable", {targetAlly, 'attack', newATK})
+      client:send("removeUnitFromTile", {caster})
+
+    end, {'triggerArgs'})
+
+  end, {'triggerArgs'})
+
+end
+
+unitSpecs["railgunSpec"] = railgunSpec
 
 return unitSpecs

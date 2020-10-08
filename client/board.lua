@@ -39,6 +39,10 @@ function TileSelection()
   end
 end
 
+function GetPlayerVar(name)
+  return (MatchState['Player'..playerNumber])[name]
+end
+
 function board.load()
 
   -- ! create the tile objects
@@ -84,13 +88,6 @@ function board.load()
 
   -- ! used to manage the turn system
   ActionsRemaining = {primary=1, secondary=2}
-
-  -- ! set the ascendant of this player in the server
-  Gamestate['Ascendant'..playerNumber] = Gamestate['myAscendant']
-  Gamestate['HasMajorPower'] = true
-  Gamestate['HasMinorPower'] = true
-  Gamestate['Chosen1UnitsKilled'] = 0
-  client:send('updateVar', {'Ascendant'..playerNumber, AscendantIndex})
 
 end
 
@@ -207,7 +204,14 @@ function board.update(dt)
                 -- create an alert asking for an attack target
                 CreateAlert('Select an attack target.', 5)
                 -- queue up an attack  on a enemyTarget
-                WaitFor("targetEnemy", client.send, {client, "unitAttack", {unit, 'triggerArgs'} })
+                WaitFor("targetEnemy", function(targetEnemy)
+                  
+                  client:send("unitTargetCheck", {targetEnemy, unit, {canBeAttacked=true}, {} })
+                  WaitFor(targetEnemy.uid.."TargetSucceed", function()
+                    client:send("unitAttack", {unit, targetEnemy})
+                  end, {'triggerArgs'})
+
+                end, {'triggerArgs'})
               end
             end
 
@@ -247,7 +251,7 @@ function board.update(dt)
 	-- ! TURN COUNTER
 	TurnCounterSuit.layout:reset(0,0)
   TurnCounterSuit.layout:padding(1)
-  local currentTurn = Gamestate.turnNumber
+  local currentTurn = MatchState.turnNumber
   TurnCounterSuit:Button('Turn '..currentTurn, TurnCounterSuit.layout:row(130,20))
   if isMyTurn() then
     local endTurnButton = TurnCounterSuit:Button('End your turn', TurnCounterSuit.layout:row())
@@ -272,36 +276,36 @@ function board.update(dt)
   if isMyTurn() then
     APanelSuit.layout:reset(centerX-150, centerY+230)
     -- major action
-    local majorPower = {}
-    if Gamestate['HasMajorPower'] then
-      majorPower = APanelSuit:Button('Major Power', APanelSuit.layout:col(100,20))
-    end
-    if majorPower.hit then
-      local ascIndex = Gamestate['Ascendant'..playerNumber]
-      local asc = ascendantList[ascIndex]
-      asc.majorFunc()
+    if GetPlayerVar('HasMajorPower') then
+      local majorPower = APanelSuit:Button('Major Power', APanelSuit.layout:col(100,20))
+      if majorPower.hit then
+        local ascIndex = GetPlayerVar('AscendantIndex')
+        local asc = ascendantList[ascIndex]
+        asc.majorFunc()
+      end
     end
     -- minor power
-    local minorPower = {}
-    if Gamestate['HasMinorPower'] then
-      minorPower = APanelSuit:Button('Minor Power', APanelSuit.layout:col(100,20))
-    end
+    if GetPlayerVar('HasMinorPower') then
+      local minorPower = APanelSuit:Button('Minor Power', APanelSuit.layout:col(100,20))
       if minorPower.hit then
-      local ascIndex = Gamestate['Ascendant'..playerNumber]
-      local asc = ascendantList[ascIndex]
-      asc.minorFunc()
+        local ascIndex = GetPlayerVar('AscendantIndex')
+        local asc = ascendantList[ascIndex]
+        asc.minorFunc()
+      end
     end
     -- incarnate
-    local incarnate = APanelSuit:Button('Incarnate', APanelSuit.layout:col(100,20))
-    if incarnate.hit then
-      local ascIndex = Gamestate['Ascendant'..playerNumber]
-      local asc = ascendantList[ascIndex]
-      asc.incarnateFunc()
+    if GetPlayerVar('HasMinorPower') then
+      local incarnate = APanelSuit:Button('Incarnate', APanelSuit.layout:col(100,20))
+      if incarnate.hit then
+        local ascIndex = GetPlayerVar('AscendantIndex')
+        local asc = ascendantList[ascIndex]
+        asc.incarnateFunc()
+      end
     end
     -- info button
     local infoButton = APanelSuit:Button('?', APanelSuit.layout:col(20,20))
     if infoButton.hit then
-      local ascIndex = Gamestate['Ascendant'..playerNumber]
+      local ascIndex = MatchState['Ascendant'..playerNumber]
       local asc = ascendantList[ascIndex]
       CreatePopupDisplay('Ascendant Powers', {'Victory Condition', 'Major', 'Minor', 'Incarnate'}, {asc.victoryText, asc.majorText, asc.minorText, 'coming soon! doesn\'t work right now'})
     end
