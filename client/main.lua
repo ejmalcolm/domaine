@@ -286,7 +286,7 @@ function connectToHost(ip)
     print('Successfully connected!')
   end)
 
-  --for getting the player index (p1 or p2)
+  -- for getting the player index (p1 or p2)
   client:on("setUpGame", function(num)
     playerNumber = num
     print('Client player number: '..playerNumber)
@@ -308,10 +308,13 @@ function connectToHost(ip)
           client:send("createUnitOnTile", {unit, tile..'A'})
       end
     end
+
     -- initialize the MatchState
     MatchState = data
+
     -- set screen to board once everything's ready
     changeScreen(board)
+
     -- call any onMatchStart functions
     local ascIndex = GetPlayerVar('AscendantIndex')
     local asc = ascendantList[ascIndex]

@@ -277,9 +277,13 @@ local function sleeperMajor()
     CreateAlert('No effect.', 3)
     return false
   elseif state == 2 then
-    print(2)
+    local sleeperUID = GetPlayerVar('AscendantUID')
+    client:send("modifyUnitTableByID", {sleeperUID, 'health', 10})
   elseif state == 3 then
-    print(3)
+    local sleeperUID = GetPlayerVar('AscendantUID')
+    local sleeper = findUnitByID(sleeperUID)
+    local lane = string.sub(sleeper.tile, 1, 1)
+    client:send("sleeperMajor3", lane)
   end
 
 end
@@ -303,7 +307,7 @@ local function sleeperMinor()
     client:send("modifyUnitTable", {targetUnit, 'canSpecial', ogSpec})
     local specTable = targetUnit.specTable
     local tags = specTable.tags
-    tags["unitMoveIn|madnessPassive"] = false
+    tags["unitMoveIn|madnessPassive"] = nil
     client:send("modifyUnitTable", {targetUnit, 'specTable', specTable})
   end
 
@@ -323,7 +327,7 @@ local function sleeperMinor()
       end, {targetUnit, ogMove, ogAtk, ogSpec})
 
     end, {'triggerArgs'})
-
+  
   elseif state == 2 then
     
     CreateAlert('Target a Unit.', 3)
@@ -370,8 +374,7 @@ local function sleeperOnMatchStart()
     
     WaitFor("unitCreated", function(unit)
       ChangePlayerVar('AscendantUID', unit.uid)
-      print(unit.uid)
-    end)
+    end, {'triggerArgs'})
 
   end, {'triggerArgs'})
 end

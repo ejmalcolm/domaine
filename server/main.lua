@@ -186,8 +186,6 @@ function love.load()
 
   MatchState = {}
   MatchState.DeadUnits = {}
-  MatchState.Player1 = {}
-  MatchState.Player2 = {}
 
   server:on("connect", function(data, client)
     print('Connection received from client.')
@@ -201,16 +199,17 @@ function love.load()
     end
     -- Tell client to what player it is, sets client Ready to true
     Players[index] = client
-    client:send("setUpGame", index)
+    server:sendToPeer(getPeer(client), "setUpGame", index)
   end)
 
   server:on("transferPreMatchData", function(PreMatchData, client)
     print('Receieved transferPreMatchData')
     local pNum = getPlayer(client)
+    print(pNum, inspect(PreMatchData))
     MatchState['Player'..pNum] = PreMatchData
-    -- !FOR TESTING ONLY
-    Players[2] = true
-    MatchState['Player2'] = {ActionTable={1,1,1},AscendantIndex=2,HasIncarnatePower=true,HasMajorPower=true,HasMinorPower=true}
+    -- -- !FOR TESTING ONLY
+    -- Players[2] = true
+    -- MatchState['Player2'] = {ActionTable={1,1,1},AscendantIndex=2,HasIncarnatePower=true,HasMajorPower=true,HasMinorPower=true}
   end)
 
   -- used to keep track of how many unit there are
@@ -220,12 +219,13 @@ function love.load()
 
   -- create the master copy of the lanes
   CreateMasterLanes()
-   -- TODO: remove
-  MasterLanes['y'][3].content = {
-    {uid='1', name='Siren', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
-    {uid='2', name='2', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
-    {uid='3', name='3', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } }
-                                }
+
+  -- TODO: remove
+  -- MasterLanes['y'][3].content = {
+  --   {uid='1', name='Siren', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
+  --   {uid='2', name='2', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
+  --   {uid='3', name='3', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } }
+  --                               }
   -- TODO: remove
 
   -- {uid=unitName..UnitCount,name=unitName,
@@ -256,7 +256,7 @@ function love.load()
     table.insert(spawnTile.content, unit)
 
     -- trigger a unitCreated event
-    server:sendToPeer(getPeer(client), "TriggerEvent", {'unitCreated', unit} )
+    server:sendToPeer(getPeer(client), "triggerEvent", {'unitCreated', unit } )
 
     -- send out the updated board
     server:sendToAll("updateLanes", MasterLanes)
@@ -319,7 +319,7 @@ function love.load()
     -- ? otherwise, i guess it's okay for now
     if defender.specTable['tags']['hunter|MarkedBy'] == attacker.uid then goto skipRange end
     -- generic checking for doNotCheckRange
-    if not doNotCheckRange then goto skipRange end
+    if doNotCheckRange then goto skipRange end
     -- check range
     if distanceBetweenTiles(attTile, defTile) ~= 0 then
       -- if not, print an error here and send an alert over to client
@@ -574,10 +574,10 @@ function love.load()
         local loser
         for _, player in pairs(Players) do
           if player ~= winner then
-            -- ! TESTING
-            goto TESTINGONLY
+            -- -- ! TESTING
+            -- goto TESTINGONLY
             loser = getPeer(Players[player])
-            ::TESTINGONLY::
+            -- ::TESTINGONLY::
           end
         end
         server:sendToPeer(winner, "youWin", {})
@@ -607,11 +607,26 @@ function love.load()
     PlayerState[field] = value
     end)
 
+  server:on("sleeperMajor3", function(sleeperLane, client)
+    print('Received sleeperMajor3')
+    for laneKey, lane in pairs(MasterLanes) do
+      if sleeperLane ~= laneKey then
+        for _, tile in pairs(lane) do
+          for _, unit in pairs(tile.content) do
+            handleEvent("unitDeath", {unit}, {unit})
+          end
+        end
+        MasterLanes[laneKey] = nil
+      end
+    end
+    server:sendToAll("updateLanes", MasterLanes)
+  end)
+
 end
 
 function love.update(dt)
 
-  if Players[1] and Players[2] and not MatchStarted then
+  if MatchState['Player1'] and MatchState['Player2'] and not MatchStarted then
     server:sendToAll("startMatch", MatchState)
     MatchStarted = true
     advanceTurnTimer()
@@ -622,4 +637,10 @@ end
 
 function love.draw()
   love.graphics.print('Server running...',10,20)
+  if MatchState['Player1'] then
+    love.graphics.print(inspect(MatchState['Player1']), 100, 100)
+  end
+  if MatchState['Player2'] then
+    love.graphics.print(inspect(MatchState['Player2']), 300, 100)
+  end
 end

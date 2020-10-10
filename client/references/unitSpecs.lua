@@ -62,8 +62,6 @@ local function envoySpecial(caster)
   WaitFor("tileSelected", function(newTileRef)
     -- * we nest on tile selection
     client:send("unitMove", {caster, caster.tile, newTileRef})
-    -- use a secondary action
-    client:send("useAction", {'secondary', caster, 'unitSpecial'})
   end, {'triggerArgs'})
 end
 
@@ -177,7 +175,7 @@ local function sniperSpec(caster)
     -- check if they're a valid target
     client:send("unitTargetCheck", {targetEnemy, caster, {horizontallyAdjacent=true}, {"sniperSpec", "targetEnemy"} })
     WaitFor(targetEnemy.uid.."TargetSucceed", function()
-      client:send("unitAttack", {caster, targetEnemy, doNotCheckRange=true})
+      client:send("unitAttack", {caster, targetEnemy, true})
       -- TODO: action
     end)
   end, {'triggerArgs'})
@@ -197,8 +195,6 @@ local function hunterSpec(caster)
     newTargetSpec.tags["hunter|MarkedBy"] = caster.uid
     client:send("modifyUnitTable", {targetEnemy, 'specTable', newTargetSpec})
     -- * the rest is handled in unitBasicAttack
-    -- use a secondary action
-    client:send("useAction", {'secondary', caster, 'unitSpecial'})
   end, {'triggerArgs'})
 
 end
@@ -904,6 +900,9 @@ local function sleeperDreamingPassive(caster, _, _)
 
   ChangePlayerVar('SleeperState', 2)
   client:send("createUnitOnTile", {"SLEEPER, DISTURBED", caster.tile})
+  WaitFor("unitCreated", function(unit)
+    ChangePlayerVar('AscendantUID', unit.uid)
+  end, {'triggerArgs'})
 end
 
 unitSpecs["sleeperDreamingPassive"] = sleeperDreamingPassive
@@ -915,6 +914,9 @@ local function sleeperDisturbedPassive(caster, _, _)
 
   ChangePlayerVar('SleeperState', 3)
   client:send("createUnitOnTile", {"SLEEPER, AWOKEN", caster.tile})
+  WaitFor("unitCreated", function(unit)
+    ChangePlayerVar('AscendantUID', unit.uid)
+  end, {'triggerArgs'})
 end
 
 unitSpecs["sleeperDisturbedPassive"] = sleeperDisturbedPassive

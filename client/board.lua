@@ -275,6 +275,7 @@ function board.update(dt)
   -- ! ASCENDANT ACTIONS
   if isMyTurn() then
     APanelSuit.layout:reset(centerX-150, centerY+230)
+
     -- major action
     if GetPlayerVar('HasMajorPower') then
       local majorPower = APanelSuit:Button('Major Power', APanelSuit.layout:col(100,20))
@@ -284,15 +285,26 @@ function board.update(dt)
         asc.majorFunc()
       end
     end
+
     -- minor power
     if GetPlayerVar('HasMinorPower') then
       local minorPower = APanelSuit:Button('Minor Power', APanelSuit.layout:col(100,20))
+
       if minorPower.hit then
         local ascIndex = GetPlayerVar('AscendantIndex')
         local asc = ascendantList[ascIndex]
         asc.minorFunc()
+        ChangePlayerVar('HasMinorPower', false)
+
+        local uniqueEvent = playerNumber..'RegainMinorPower'
+        client:send("queueTimedEvent", {uniqueEvent, 3, {}})
+        WaitFor("queueTimedEvent", function()
+          ChangePlayerVar('HasMinorPower', true)
+        end, {})
+
       end
     end
+
     -- incarnate
     if GetPlayerVar('HasIncarnatePower') then
       local incarnate = APanelSuit:Button('Incarnate', APanelSuit.layout:col(100,20))
@@ -300,8 +312,10 @@ function board.update(dt)
         local ascIndex = GetPlayerVar('AscendantIndex')
         local asc = ascendantList[ascIndex]
         asc.incarnateFunc()
+        ChangePlayerVar('HasAscendantPower', false)
       end
     end
+
     -- info button
     local infoButton = APanelSuit:Button('?', APanelSuit.layout:col(20,20))
     if infoButton.hit then

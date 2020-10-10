@@ -63,11 +63,12 @@ local function sleeperVictory(player)
   local function isMad(unit)
     local specTable = unit.specTable
     local tags = specTable.tags
-    local madnessState = false
-    for tag, _ in pairs(tags) do
 
+    for tag, val in pairs(tags) do
+      if tag == 'unitMoveIn|madnessPassive' and val == true then return true end
     end
-    return madnessState
+
+    return false
   end
 
   if sleeperState == 3 then
@@ -77,7 +78,11 @@ local function sleeperVictory(player)
     for _, lane in pairs(MasterLanes) do
       for _, tile in pairs(lane) do
         for _, unit in pairs(tile.content) do
-          if (unit.uid ~= sleeperUID) or not isMad(unit) then onlyUnit = false end 
+          if not isMad(unit) then
+            if sleeperUID ~= unit.uid then
+              onlyUnit = false
+            end
+          end
         end
       end
     end
