@@ -294,7 +294,7 @@ function board.update(dt)
       end
     end
     -- incarnate
-    if GetPlayerVar('HasMinorPower') then
+    if GetPlayerVar('HasIncarnatePower') then
       local incarnate = APanelSuit:Button('Incarnate', APanelSuit.layout:col(100,20))
       if incarnate.hit then
         local ascIndex = GetPlayerVar('AscendantIndex')

@@ -270,21 +270,126 @@ ascendantList[3] = {
   victoryFunc=parallelVictory
 }
 
-local function sleeperMajor() end
+local function sleeperMajor()
+  local state = GetPlayerVar('SleeperState')
 
-local function sleeperMinor() end
+  if state == 1 then
+    CreateAlert('No effect.', 3)
+    return false
+  elseif state == 2 then
+    print(2)
+  elseif state == 3 then
+    print(3)
+  end
 
-local function sleeperIncarnate() end
+end
 
-local function sleeperVictory() end
+local function sleeperMinor()
+  local state = GetPlayerVar('SleeperState')
+ 
+  local function inflictMadness(targetUnit)
+    client:send("modifyUnitTable", {targetUnit, 'canMove', false})
+    client:send("modifyUnitTable", {targetUnit, 'canAttack', false})
+    client:send("modifyUnitTable", {targetUnit, 'canSpecial', false})
+    local specTable = targetUnit.specTable
+    local tags = specTable.tags
+    tags["unitMoveIn|madnessPassive"] = true
+    client:send("modifyUnitTable", {targetUnit, 'specTable', specTable})
+  end
+
+  local function reverseMadness(targetUnit, ogMove, ogAtk, ogSpec)
+    client:send("modifyUnitTable", {targetUnit, 'canMove', ogMove})
+    client:send("modifyUnitTable", {targetUnit, 'canAttack', ogAtk})
+    client:send("modifyUnitTable", {targetUnit, 'canSpecial', ogSpec})
+    local specTable = targetUnit.specTable
+    local tags = specTable.tags
+    tags["unitMoveIn|madnessPassive"] = false
+    client:send("modifyUnitTable", {targetUnit, 'specTable', specTable})
+  end
+
+  if state == 1 then
+    -- one-turn madness
+    CreateAlert('Target a Unit.', 3)
+    WaitFor("targetUnit", function(targetUnit)
+
+      local ogMove, ogAtk, ogSpec = targetUnit.canMove, targetUnit.canAttack, targetUnit.canSpecial
+      inflictMadness(targetUnit)
+
+      local uniqueEvent = playerNumber..'sleeperMadnessReversion'
+      client:send("queueTimedEvent", {uniqueEvent, 1, {} })
+
+      WaitFor(uniqueEvent, function(unit, omove, oatk, ospec)
+        reverseMadness(unit, omove, oatk, ospec)
+      end, {targetUnit, ogMove, ogAtk, ogSpec})
+
+    end, {'triggerArgs'})
+
+  elseif state == 2 then
+    
+    CreateAlert('Target a Unit.', 3)
+    WaitFor("targetUnit", function(targetUnit)
+      inflictMadness(targetUnit)
+    end, {'triggerArgs'})
+
+
+  elseif state == 3 then
+    
+    CreateAlert('Select a Tile.', 3)
+    AskingForTile = true
+    WaitFor("tileSelected", function(selectedTile)
+      
+      local tile = tileRefToTile(selectedTile)
+      
+      for _, unit in pairs(tile.content) do
+        inflictMadness(unit)
+      end
+
+    end, {'triggerArgs'})
+
+  end
+
+end
+
+local function sleeperIncarnate()
+  CreateAlert('How did you get here???', 5)
+  return true
+end
+
+local function sleeperVictory()
+end
+
+local function sleeperOnMatchStart()
+  ChangePlayerVar('SleeperState', 3)
+  ChangePlayerVar('HasIncarnatePower', false)
+
+  -- create Incarnate
+  CreateAlert('Select a Tile for the SLEEPER.', 5)
+  AskingForTile = true
+  WaitFor("tileSelected", function(selectedTile)
+    client:send("createUnitOnTile", {"SLEEPER, DREAMING", selectedTile})
+    
+    WaitFor("unitCreated", function(unit)
+      ChangePlayerVar('AscendantUID', unit.uid)
+      print(unit.uid)
+    end)
+
+  end, {'triggerArgs'})
+end
 
 ascendantList[4] = {
   name='The Sleeper',
   splash = love.graphics.newImage('images/ascendantSleeper.png'),
-  majorText='The Sleeper\'s power depends on their state.\nDREAMING: No effect.\nDISTURBED: Heal the Sleeper to 10HP.\nAWOKEN: Remove Lanes other than the Sleeper\'s Lane from the game.',
-  majorFunc=nil,
-  minorText='The Sleeper\'s power depends on their state. Mad Units cannot Act, and automatically attack any Unit that moves into their tile.\nDREAMING: Target a Unit. Inflict Madness on them for the next Turn.\nDISTURBED: Target a Unit. Inflict permanent Madness on them.\nAWOKEN: Target a Tile. Inflict permanent Madness on each Unit in that Tile.',
-  minorFunc=nil,
+  majorText=[[The Sleeper's power depends on their state.
+  DREAMING: No effect.
+  DISTURBED: Heal the Sleeper to 10HP.
+  AWOKEN: Remove Lanes other than the Sleeper's Lane from the game.]],
+  majorFunc=sleeperMajor,
+  minorText=[[The Sleeper's power depends on their state.
+Mad Units cannot Act, and automatically attack any Unit that moves into their tile.
+DREAMING: Target a Unit. Inflict Madness on them for the next Turn.
+DISTURBED: Target a Unit. Inflict permanent Madness on them.
+AWOKEN: Target a Tile. Inflict permanent Madness on each Unit in that Tile.]],
+  minorFunc=sleeperMinor,
   incarnateText=[[THE SLEEPER, DREAMING
   0|5
   When a Unit dies in the same Tile as the Sleeper, it becomes the Sleeper, Disturbed.
@@ -300,9 +405,10 @@ ascendantList[4] = {
   ACTIVE: Kill all other Units in the Sleeper’s Tile.
   If the Sleeper, Awoken is the only Unit remaining, or if all other Units have Madness, you win the game.
   ]],
-  incarnateFunc=nil,
-  victoryText='The Sleeper\'s Incarnate must be placed on the board during Unit Placement. Refer to the Incarnate for more information.',
-  victoryFunc=nil
+  incarnateFunc=sleeperIncarnate,
+  victoryText='The Sleeper\'s Incarnate must be placed on the board at the start of the game. Refer to the Incarnate for more information.',
+  victoryFunc=sleeperVictory,
+  onMatchStartFunc=sleeperOnMatchStart
 }
 
 local function savantMajor()
@@ -402,8 +508,7 @@ local function savantVictory(player)
   end
 end
 
-local function savantOnMatchConnect()
-  print('called')
+local function savantOnMatchStart()
   CreateSliderPopup('Choose which turn you wish to declare victory.')
 end
 
@@ -415,17 +520,16 @@ ascendantList[5] = {
   minorText='Remove a chosen Unit from the game. In two turns, that Unit returns to the game exactly as it left.',
   minorFunc=savantMinor,
   incarnateText=[[SAVANT
-  3|2
-  ACTIVE: Create one of the following in this Tile:
-    Tripwire: 0|1 When a Unit enters this Tile, they take 1 damage.
-    Hologram: 0|1 This Unit cannot be damaged by attacks.
-    Railgun: 0|1 ACTIVE: Kill this Unit. Target ally in this Tile gains +2 ATK.
-  ACTIVE: Remove this Unit from the board and restore your Incarnate ability.
-  ]],
+3|2
+ACTIVE: Create one of the following in this Tile:
+  Tripwire: 0|1 When a Unit enters this Tile, they take 1 damage.
+  Hologram: 0|1 This Unit cannot be damaged by attacks.
+  Railgun: 0|1 ACTIVE: Kill this Unit. Target ally in this Tile gains +2 ATK.
+ACTIVE: Remove this Unit from the board and restore your Incarnate ability.]],
   incarnateFunc=savantIncarnate,
   victoryText='At the start of the game, pick a turn number greater than 5. On that turn, if you have more Units than your opponent, you win. Otherwise, you lose.',
   victoryFunc=savantVictory,
-  onMatchStartFunc=savantOnMatchConnect
+  onMatchStartFunc=savantOnMatchStart
 }
 
 return ascendantList

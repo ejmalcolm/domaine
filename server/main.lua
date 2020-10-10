@@ -234,15 +234,19 @@ function love.load()
 
 
   server:on("createUnitOnTile", function(data, client)
+
     --used to create a unit from just a unit name, assigning it a UnitCount and its default stats
+
     print('Received createUnitOnTile')
     local unitName, tileRef = data[1], data[2]
     print('Creating '..unitName..' on tile '..tileRef)
+
     -- * tileRef is in form 'rA'
     -- * we need to convert it before setting the units stored reference
     local spawnTile, newRef = tileRefToTile(tileRef, client)
-    -- * check to make sure 
+
     UnitCount = UnitCount + 1
+
     -- calculate the statistics of the unit by referencing unitList
     local unitRef = UnitList[unitName]
     local cst, atk, hp, cM, cA, cS, special = unitRef[1], unitRef[2], unitRef[3], unitRef.canMove, unitRef.canAttack, unitRef.canSpecial, unitRef.special
@@ -250,6 +254,10 @@ function love.load()
                   attack=atk,health=hp,tile=newRef,canMove=cM,canAttack=cA,canSpecial=cS,
                   specTable=special}
     table.insert(spawnTile.content, unit)
+
+    -- trigger a unitCreated event
+    server:sendToPeer(getPeer(client), "TriggerEvent", {'unitCreated', unit} )
+
     -- send out the updated board
     server:sendToAll("updateLanes", MasterLanes)
   end)
@@ -331,6 +339,14 @@ function love.load()
       -- call the events
       handleEvent("unitKill", {attacker}, {attacker})
       handleEvent("unitDeath", {defender}, {defender})
+      local contentHardCopy = defTile.content
+      for _, unit in pairs(contentHardCopy) do
+        print(unit.name)
+        -- don't call this event for the actual unit dying
+        if unit.uid ~= defender.uid then
+          handleEvent("unitDeathInTile", {unit}, {unit, defender, attacker})
+        end
+      end
     else
       -- * if the HP is above zero, change the HP stat
       print(defender.uid.. ' now has '..newDefenderHP..' health')
@@ -339,8 +355,6 @@ function love.load()
       server:sendToPeer(getPeer(client), "createAlert",
             {defender.name..' now has '..newDefenderHP..' HP', 5})
     end
-    -- use a primary action
-    server:sendToPeer(getPeer(client), "actionUsed", 'primary')
     -- update the board
     server:sendToAll("updateLanes", MasterLanes)
   end)
@@ -351,17 +365,18 @@ function love.load()
 
     -- first, we check unitMoveIn and unitMoveOut for all units in the old and new tile
     local oldTile, newTile = tileRefToTile(oldTileRef), tileRefToTile(newTileRef)
-    local outUnits, inUnits = {}, {}
+    local outUnits = {}
+
     for _, oldUnit in pairs(oldTile.content) do
       -- note that outUnits contains the moving unit self
       table.insert(outUnits, oldUnit)
     end
+
     for _, newUnit in pairs(newTile.content) do
-      table.insert(inUnits, newUnit)
+      handleEvent("unitMoveIn", {newUnit}, {unit, oldTileRef, newTileRef, newUnit})
     end
 
     handleEvent("unitMoveOut", outUnits, {unit, oldTileRef, newTileRef})
-    handleEvent("unitMoveIn", inUnits, {unit, oldTileRef, newTileRef})
 
     -- ! actual movement
     -- remove from old tile
@@ -569,7 +584,7 @@ function love.load()
         -- ! TESTING server:sendToPeer(loser, "youLose", {})
       end
     end
-    -- increment the turn timer and activate any queued actions
+    -- increment the turn timer and activate any queued events
     advanceTurnTimer(client)
     -- the second argument is the player ID (numbers for now)
     local newTurnTaker

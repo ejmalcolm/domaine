@@ -402,6 +402,11 @@ function connectToHost(ip)
   end
 end
 
+function ChangePlayerVar(field, value)
+  (MatchState['Player'..playerNumber])[field] = value
+  client:send("updatePlayerVar", {field, value})
+end
+
 
 -- ! LOVE loops and game events
 
@@ -441,6 +446,7 @@ function love.load()
     active   = {bg = {1,0.6,  0}, fg = {1,1,1}}
   }
   -- initialize by setting the currentScreen to the menu
+  menu.load()
   currentScreen = menu
 end
 

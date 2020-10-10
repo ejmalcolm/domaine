@@ -895,4 +895,44 @@ end
 
 unitSpecs["railgunSpec"] = railgunSpec
 
+-- ! SLEEPER
+
+local function sleeperDreamingPassive(caster, _, _)
+  CreateAlert('The Sleeper is Disturbed!', 5)
+
+  client:send("removeUnitFromTile", {caster})
+
+  ChangePlayerVar('SleeperState', 2)
+  client:send("createUnitOnTile", {"SLEEPER, DISTURBED", caster.tile})
+end
+
+unitSpecs["sleeperDreamingPassive"] = sleeperDreamingPassive
+
+local function sleeperDisturbedPassive(caster, _, _)
+  CreateAlert('The Sleeper has Awoken!', 5)
+
+  client:send("removeUnitFromTile", {caster})
+
+  ChangePlayerVar('SleeperState', 3)
+  client:send("createUnitOnTile", {"SLEEPER, AWOKEN", caster.tile})
+end
+
+unitSpecs["sleeperDisturbedPassive"] = sleeperDisturbedPassive
+
+local function sleeperAwokenSpec(caster)
+  local tile = tileRefToTile(caster.tile)
+  for _, unit in pairs(tile.content) do
+    -- TODO: death event
+    if unit.uid ~= caster.uid then client:send("removeUnitFromTile", {unit}) end
+  end
+end
+
+unitSpecs["sleeperAwokenSpec"] = sleeperAwokenSpec
+
+local function madnessPassive(caster, oldTileRef, newTileRef, inMover)
+  client:send("unitAttack", {caster, inMover})
+end
+
+unitSpecs["madnessPassive"] = madnessPassive
+
 return unitSpecs

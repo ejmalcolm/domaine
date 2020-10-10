@@ -31,13 +31,61 @@ AscendantVictories[2] = {
   victoryFunc=imperatorVictory
 }
 
+local function parallelVictory(player)
+  local allSameATK = true
+  local allSameHP = true
+  local ATKcheck, HPcheck
+
+  for _, lane in pairs(MasterLanes) do
+    for _, tile in pairs(lane) do
+      for _, unit in pairs(tile.content) do
+        if not ATKcheck then ATKcheck = unit.attack end
+        if not HPcheck then HPcheck = unit.health end
+        if unit.attack ~= ATKcheck then allSameATK = false end
+        if unit.health ~= HPcheck then allSameHP = false end
+      end
+    end
+  end
+
+  return (allSameATK or allSameHP)
+
+end
+
 AscendantVictories[3] = {
   name='The Parallel',
   victoryText='If every surviving unit has the same Attack OR the same Health.',
   victoryFunc=parallelVictory
 }
 
-local function sleeperVictory(player) return false end
+local function sleeperVictory(player)
+  local sleeperState = (MatchState['Player'..player])['SleeperState']
+
+  local function isMad(unit)
+    local specTable = unit.specTable
+    local tags = specTable.tags
+    local madnessState = false
+    for tag, _ in pairs(tags) do
+
+    end
+    return madnessState
+  end
+
+  if sleeperState == 3 then
+
+    local onlyUnit = true
+    local sleeperUID = (MatchState['Player'..player])['AscendantUID']
+    for _, lane in pairs(MasterLanes) do
+      for _, tile in pairs(lane) do
+        for _, unit in pairs(tile.content) do
+          if (unit.uid ~= sleeperUID) or not isMad(unit) then onlyUnit = false end 
+        end
+      end
+    end
+
+    return onlyUnit
+  end
+
+end
 
 AscendantVictories[4] = {
   victoryText='The Sleeper\'s Incarnate must be placed on the board during Unit Placement. Refer to the Incarnate for more information.',

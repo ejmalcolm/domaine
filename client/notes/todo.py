@@ -24,7 +24,9 @@
 
 # TODO: UPDATE 3) GRAPHICAL REWORK
 
-
+# TODO: QOL Programming Changes
+  # addTag/removeTag commands
+  # changePlayerVar() all in one function, updates both client-side MatchState and server-side
 
 # TODO: need a way to cancel powers once you activate them
   # basically have a way to cancel any WaitFor

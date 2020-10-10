@@ -307,4 +307,36 @@ special ={
           specRef='railgunSpec',
           tags= {} } }
 
+-- ! SLEEPER
+
+unitList["SLEEPER, DREAMING"] = {0, 0, 5,
+canMove = false, canAttack = false, canSpecial = false,
+special = {
+           shortDesc=[[When a Unit dies in the same Tile as the Sleeper, it becomes the Sleeper, Disturbed.
+The Sleeper, Dreaming cannot move or attack.]],
+           fullDesc=[[When a Unit dies in the same Tile as the Sleeper, it becomes the Sleeper, Disturbed.
+The Sleeper, Dreaming cannot move or attack.]],
+           specRef=nil,
+           tags= {} } }
+
+unitList["SLEEPER, DISTURBED"] = {0, 0, 10,
+canMove = false, canAttack = false, canSpecial = false,
+special = {
+          shortDesc=[[When a Unit dies in the same Tile as the Sleeper, it becomes the Sleeper, Awoken.
+The Sleeper, Disturbed cannot move or attack.]],
+          fullDesc=[[When a Unit dies in the same Tile as the Sleeper, it becomes the Sleeper, Awoken.
+The Sleeper, Disturbed cannot move or attack.]],
+          specRef=nil,
+          tags= {} } }
+
+unitList["SLEEPER, AWOKEN"] = {0, 10, 10,
+canMove = true, canAttack = true, canSpecial = true,
+special = {
+          shortDesc=[[ACTIVE: Kill all other Units in the Sleeper’s Tile.
+If the Sleeper, Awoken is the only Unit remaining, or if all other Units have Madness, you win the game.]],
+          fullDesc=[[ACTIVE: Kill all other Units in the Sleeper’s Tile.
+If the Sleeper, Awoken is the only Unit remaining, or if all other Units have Madness, you win the game.]],
+          specRef='sleeperAwokenSpec',
+          tags= {} } }
+
 return unitList

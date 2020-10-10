@@ -18,6 +18,8 @@ return function(core, text, ...)
 		hit = core:mouseReleasedOn(opt.id),
 		hovered = core:isHovered(opt.id),
 		entered = core:isHovered(opt.id) and not core:wasHovered(opt.id),
-		left = not core:isHovered(opt.id) and core:wasHovered(opt.id)
-	}
+		left = not core:isHovered(opt.id) and core:wasHovered(opt.id),
+    x = x,
+    y = y
+  }
 end

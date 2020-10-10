@@ -1,22 +1,40 @@
 local menu = {}
 
+function menu.load()
+  ButtonTexture = love.graphics.newImage('images/newButton.png')
+end
+
 function menu.update(dt)
-  -- button to launch into unitPlacement
-  -- center the button
-  local x, y = love.graphics.getDimensions()
-  suit.layout:reset(Round(x/2-150), Round(y/2-15))
-  local startButton = suit.Button("Start Game", suit.layout:row(300, 30))
-  if startButton.hit then
+  -- basic menu layout:
+    -- matchmaking, direct connect, Domainepedia, Options, Exit
+  -- set up layout
+  suit.layout:reset(centerX-150, 200)
+  suit.layout:padding(25)
+
+  -- buttons
+  local matchmakingButton = suit.Button("Matchmaking", suit.layout:row(300, 30))
+
+  local directButton = suit.Button("Direct Connect", suit.layout:row())
+  if directButton.hit then
     chooseAscendant.load()
     changeScreen(chooseAscendant)
   end
+
+  local sandboxButton = suit.Button("Sandbox", suit.layout:row(300,30))
+
+  local wikiButton = suit.Button("Domainopedia", suit.layout:row(300, 30))
+
+  local optionsButton = suit.Button("Options", suit.layout:row(300, 30))
+
+  local quitButton = suit.Button("Quit", suit.layout:row(300, 30))
+
+
 end
 
 function menu.draw()
-  local x = love.graphics.getDimensions()
-  local center = x/2
   local logo = love.graphics.newImage('images/logo.png')
-  love.graphics.draw(logo, (x/2)-250, 10)
+  love.graphics.draw(logo, centerX-250, 10)
+
   suit.draw()
 end
 
