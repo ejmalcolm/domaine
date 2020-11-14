@@ -17,7 +17,8 @@ function buildArmy.update(dt)
     -- only add units with costs (not architect buildings)
     if unit[1] ~= 0 then table.insert(unitNames, unitName) end
   end
-  
+  table.sort(unitNames)
+
   local numOfRows = 5
   for rowNum=1,numOfRows do
     -- 1 = 1:5
@@ -84,7 +85,8 @@ function buildArmy.update(dt)
   end
 
   --make a button to launch into the matchmaking screen
-  suit.Button('Army Complete', centerX-75, centerY+200, 150, 20)
+  suit.layout:reset(centerX-75,y-40)
+  suit.Button('Army Complete', suit.layout:row(150,20))
   if suit.isHit('Army Complete') then
       changeScreen(unitPlacement)
       unitPlacement.setArmy(armyList)

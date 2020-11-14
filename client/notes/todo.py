@@ -1,8 +1,5 @@
-
-# TODO: MVG) FINISH ASCENDANTS
-  # FIX GAMESTATE
-  # WORKING ACTION DISPLAY
-
+# work on direct connection
+# change the "hover over" info (name/stats) to be easier to read
 
 # ! VERSION 0.5: FIX ALERTS
   # make new alerts write over old reworks
@@ -18,15 +15,12 @@
 
 # ! VERSION 0.7: GAME
 
-# TODO: UPDATE 1) ACTION DISPLAY, USING MANUAL ACTIONS
+# TODO: UPDATE 1) ACTION MANGAEMENT
 
-# TODO: UPDATE 2) ACTION MANGAEMENT
-
-# TODO: UPDATE 3) GRAPHICAL REWORK
+# TODO: UPDATE 2) UNIT SPRITES
 
 # TODO: QOL Programming Changes
   # addTag/removeTag commands
-  # changePlayerVar() all in one function, updates both client-side MatchState and server-side
 
 # TODO: need a way to cancel powers once you activate them
   # basically have a way to cancel any WaitFor
@@ -39,5 +33,7 @@
 # ! BUG: all attack abilities use a primary action when they shouldn't
   # this is because using an action is called in server:on(unitAttack)
 # ! BUG: some unit names don't fit, like The Envoy, when **Chosen**
+# ! BUG: units that canMove=false can still move with the control panel
+  # the if statement checks are not there yet
 
 #! -- GAME BALANCE -- !#

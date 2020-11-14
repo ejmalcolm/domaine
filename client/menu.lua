@@ -1,7 +1,6 @@
 local menu = {}
 
 function menu.load()
-  ButtonTexture = love.graphics.newImage('images/newButton.png')
 end
 
 function menu.update(dt)
@@ -12,9 +11,13 @@ function menu.update(dt)
   suit.layout:padding(25)
 
   -- buttons
-  local matchmakingButton = suit.Button("Matchmaking", suit.layout:row(300, 30))
+  local browseLobbyButton = suit.Button("Browse Match Lobbies", suit.layout:row(300, 30))
+  if browseLobbyButton.hit then
+    BrowseLobbies.load()
+    changeScreen(BrowseLobbies)
+  end
 
-  local directButton = suit.Button("Direct Connect", suit.layout:row())
+  local directButton = suit.Button("Connect by IP", suit.layout:row(300,30))
   if directButton.hit then
     chooseAscendant.load()
     changeScreen(chooseAscendant)

@@ -8,6 +8,7 @@ chooseAscendant = require("chooseAscendant")
 victoryScreen = require("victoryScreen")
 defeatScreen = require("defeatScreen")
 WaitingScreen = require("WaitingScreen")
+BrowseLobbies = require("BrowseLobbies")
 
 -- * references
 unitList = require("references/unitList")
@@ -121,44 +122,48 @@ function CreatePopupDisplay(title, subtitles, text)
   -- * creates a info menu, with headings {subtitles}, each with text underneath them in the {text}
   -- the first "1" is the starting index, aka which subtitle/text pair to start at
   -- the final true value is just used to control whether the display is active or not
+  PopupDisplays = {}
   PopupDisplays[title] = {1, subtitles, text, true}
 end
 
 function UpdatePopupDisplays(dt)
   -- * updates a popup menu over the center of the screen with a bunch of options
   for title, data in pairs(PopupDisplays) do
-    if data[4] then
-      ActivePopupDisplay = true
-      -- draw the title
-      PopupDisplaySuit.layout:reset(centerX-100, centerY-100)
-      PopupDisplaySuit:Label(title, PopupDisplaySuit.layout:col(200,20))
-      -- take in account the border
-      PopupDisplaySuit.layout:reset(centerX-150, centerY-59)
-      PopupDisplaySuit.layout:padding(1)
-      -- ! cancel button in the top right
-      PopupDisplaySuit.layout:reset(centerX+179, centerY-95)
-      local cancelButton = PopupDisplaySuit:Button('X', PopupDisplaySuit.layout:row(20,20))
-      if cancelButton.hit then PopupDisplays[title][4] = false return end
-      -- ! display information
-      local activeIndex = data[1]
-      local subtitlesTable = data[2]
-      local textTable = data[3]
-      local subtitle = subtitlesTable[activeIndex]
-      local text = textTable[activeIndex]
-      -- first, the title and the "change selection" buttons
-      PopupDisplaySuit.layout:reset(centerX-65, centerY-60)
-      local backButton = PopupDisplaySuit:Button('<', PopupDisplaySuit.layout:col(20,20))
-      PopupDisplaySuit:Label(subtitle, PopupDisplaySuit.layout:col(90, 20))
-      local nextButton = PopupDisplaySuit:Button('>', PopupDisplaySuit.layout:col(20,20))
-      if backButton.hit then data[1] = math.max((data[1]-1),1) end
-      if nextButton.hit then data[1] = math.min(data[1]+1, #subtitlesTable) end
-      -- then, the info
-      PopupDisplaySuit.layout:reset(centerX-200, centerY-75)
-      PopupDisplaySuit:Label(text, PopupDisplaySuit.layout:row(400, 170))
-    else
-      ActivePopupDisplay = false
-      PopupMenus[title] = nil
+
+    -- draw the title
+    PopupDisplaySuit.layout:reset(centerX-100, centerY-100)
+    PopupDisplaySuit:Label(title, PopupDisplaySuit.layout:col(200,20))
+    -- take in account the border
+    PopupDisplaySuit.layout:reset(centerX-150, centerY-59)
+    PopupDisplaySuit.layout:padding(1)
+
+
+    -- ! cancel button in the top right
+
+    PopupDisplaySuit.layout:reset(centerX+179, centerY-95)
+    local cancelButton = PopupDisplaySuit:Button('X', PopupDisplaySuit.layout:row(20,20))
+
+    if cancelButton.hit then
+      PopupDisplays[title] = nil
+      return
     end
+
+    -- ! display information
+    local activeIndex = data[1]
+    local subtitlesTable = data[2]
+    local textTable = data[3]
+    local subtitle = subtitlesTable[activeIndex]
+    local text = textTable[activeIndex]
+    -- first, the title and the "change selection" buttons
+    PopupDisplaySuit.layout:reset(centerX-65, centerY-60)
+    local backButton = PopupDisplaySuit:Button('<', PopupDisplaySuit.layout:col(20,20))
+    PopupDisplaySuit:Label(subtitle, PopupDisplaySuit.layout:col(90, 20))
+    local nextButton = PopupDisplaySuit:Button('>', PopupDisplaySuit.layout:col(20,20))
+    if backButton.hit then data[1] = math.max((data[1]-1),1) end
+    if nextButton.hit then data[1] = math.min(data[1]+1, #subtitlesTable) end
+    -- then, the info
+    PopupDisplaySuit.layout:reset(centerX-200, centerY-75)
+    PopupDisplaySuit:Label(text, PopupDisplaySuit.layout:row(400, 170))
   end
 end
 
@@ -303,7 +308,7 @@ function connectToHost(ip)
   -- * launches the actual match, switches to board
   client:on("startMatch", function(data)
     -- one at a time, add each unit from unitPlacement into the matching starting Tile
-    for _, tile in pairs({'r', 'y', 'g'}) do
+    for _, tile in pairs({'r', 'y', 'b'}) do
       for _, unit in pairs(unitPlacement.pRects[tile].content) do
           client:send("createUnitOnTile", {unit, tile..'A'})
       end
@@ -432,7 +437,7 @@ function love.load()
   -- basic settings
   love.keyboard.setKeyRepeat(true)
   love.window.setTitle('Domaine')
-  love.window.setMode(960, 540, {resizable=true})
+  love.window.setMode(1280, 720, {resizable=false})
   -- audio assets (expensive to create many times)
   AudioSources = {}
   AudioSources["alertSound"] = love.audio.newSource('sounds/alertSoundDown.wav', 'static')
@@ -521,7 +526,11 @@ function love.draw()
     love.graphics.setColor(255,255,255)
   end
 
-  if ActivePopupDisplay then
+  local popupDisplayLen = 0
+  for _, _ in pairs(PopupDisplays) do
+    popupDisplayLen = popupDisplayLen + 1
+  end
+  if popupDisplayLen > 0 then
     -- border and bg of popup
     love.graphics.rectangle('fill', centerX-200, centerY-100, 400, 200)
     love.graphics.draw(PopUpBG, centerX-200, centerY-100)

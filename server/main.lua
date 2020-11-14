@@ -11,24 +11,29 @@ function CreateMasterLanes()
 	-- the structures is MasterLanes.LANENAME.[TILE#]
 	-- where LANENAME = r, y, g
 	-- TILE# = 1, 2, 3
-	for k1, lane in pairs({'r', 'y', 'g'}) do
+  for k1, lane in pairs({'r', 'y', 'b'}) do
+
 		MasterLanes[lane] = {}
-		for k2, _ in pairs( {'_', '_', '_'} ) do
+    for k2, _ in pairs( {'_', '_', '_'} ) do
+
 			-- define the tile
       MasterLanes[lane][k2] = {}
       MasterLanes[lane][k2].l = lane
-      MasterLanes[lane][k2].t = k2 
-			-- fancy coordinate mathematics not really fancy
-			MasterLanes[lane][k2].rect = {10+(315*(k1-1)), 75+(105*(k2-1)), 100, 100}
-			MasterLanes[lane][k2].content = {}
+      MasterLanes[lane][k2].t = k2
+
+      -- {x, y, w, h}
+      MasterLanes[lane][k2].rect = {135+(340*(k1-1)), 45+(213*(k2-1)), 330, 200}
+      MasterLanes[lane][k2].content = {}
+
 			-- set the color
 			if lane == 'r' then
 				MasterLanes[lane][k2].color = {1, 0, 0}
 			elseif lane == 'y' then
 				MasterLanes[lane][k2].color = {1, 1, 0}
-			elseif lane == 'g' then
-				MasterLanes[lane][k2].color = {0,.5,0}
-			end
+			elseif lane == 'b' then
+				MasterLanes[lane][k2].color = {0,0,1}
+      end
+
 		end
 	end
 end
@@ -93,7 +98,7 @@ local function adjacentLanes(lane1, lane2)
   -- * note: lanes are not adjacent to themselves
   if lane1 == 'r' then
     if lane2 ~= 'y' then return false end
-  elseif lane1 == 'g' then
+  elseif lane1 == 'b' then
     if lane2 ~= 'y' then return false end
   elseif lane1 == 'y' then
     -- only lane not adjacent to yellow is itself
@@ -208,8 +213,8 @@ function love.load()
     print(pNum, inspect(PreMatchData))
     MatchState['Player'..pNum] = PreMatchData
     -- -- !FOR TESTING ONLY
-    -- Players[2] = true
-    -- MatchState['Player2'] = {ActionTable={1,1,1},AscendantIndex=2,HasIncarnatePower=true,HasMajorPower=true,HasMinorPower=true}
+    Players[2] = true
+    MatchState['Player2'] = {ActionTable={1,1,1},AscendantIndex=2,HasIncarnatePower=true,HasMajorPower=true,HasMinorPower=true}
   end)
 
   -- used to keep track of how many unit there are
@@ -221,11 +226,11 @@ function love.load()
   CreateMasterLanes()
 
   -- TODO: remove
-  -- MasterLanes['y'][3].content = {
-  --   {uid='1', name='Siren', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
-  --   {uid='2', name='2', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } },
-  --   {uid='3', name='3', player=2, cost=1, attack=2, health=1, tile='y3', specTable={shortDesc=2, fullDesc=1, tags={} } }
-  --                               }
+  MasterLanes['r'][3].content = {
+    {uid='1', name='Siren', player=2, cost=1, attack=2, health=1, tile='r3', specTable={shortDesc=2, fullDesc=1, tags={} } },
+    {uid='2', name='2', player=2, cost=1, attack=2, health=1, tile='r3', specTable={shortDesc=2, fullDesc=1, tags={} } },
+    {uid='3', name='3', player=2, cost=1, attack=2, health=1, tile='r3', specTable={shortDesc=2, fullDesc=1, tags={} } }
+                                }
   -- TODO: remove
 
   -- {uid=unitName..UnitCount,name=unitName,
@@ -574,14 +579,14 @@ function love.load()
         local loser
         for _, player in pairs(Players) do
           if player ~= winner then
-            -- -- ! TESTING
-            -- goto TESTINGONLY
+            -- ! TESTING
+            goto TESTINGONLY
             loser = getPeer(Players[player])
-            -- ::TESTINGONLY::
+            ::TESTINGONLY::
           end
         end
         server:sendToPeer(winner, "youWin", {})
-        -- ! TESTING server:sendToPeer(loser, "youLose", {})
+        server:sendToPeer(loser, "youLose", {})
       end
     end
     -- increment the turn timer and activate any queued events

@@ -12,7 +12,7 @@ end
 -- lOve logic
 
 function ConnectScreen.load()
-  ipInputText = {text = ""}
+  ipInputText = {text = "localhost"}
 end
 
 function ConnectScreen.update(dt)
@@ -27,7 +27,8 @@ function ConnectScreen.update(dt)
   suit.Label('Enter the host IP here.', centerX-150, centerY-80, 300, 30)
   
   -- button to connect
-  local connectButton = suit.Button('Connect', centerX-50, centerY-10, 100, 20)
+  suit.layout:reset(centerX-75,y-40)
+  local connectButton = suit.Button('Connect', suit.layout:row(150,20))
   -- logic for hitting the button
   if connectButton.hit then
       print('Connecting to: '..ipInputText.text)
