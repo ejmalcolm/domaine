@@ -1,4 +1,9 @@
-# work on direct connection
+
+# * work on direct connection
+  # we have a nice lobby UI setup
+  # change the server-side infrastructure to have a "game management" section
+  # channel mangament based off the host lobby screen
+
 # change the "hover over" info (name/stats) to be easier to read
 
 # ! VERSION 0.5: FIX ALERTS
