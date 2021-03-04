@@ -15,7 +15,6 @@
 # ! VERSION 0.6: UNIT PLACEMENT
   # * add to unitPlacement:
   # something that explains what is happening
-  # another unit display panel that tells you what each unit is when you hover it
   # * change unitPlacement to be multiplayer, players take turns at it
 
 # ! VERSION 0.7: GAME

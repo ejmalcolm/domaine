@@ -371,7 +371,7 @@ function board.update(dt)
     local tileRef = ActiveUnit.tile
     local laneKey, tileKey = tileRef:sub(1,1), tonumber(tileRef:sub(2,2))
 
-    if ActiveUnit.player == playerNumber then
+    if ActiveUnit.player == playerNumber and isMyTurn() then
 
       CBarOrbsSuit.layout:reset(45, 223)
       if tileKey ~= 1 then
@@ -540,7 +540,7 @@ function board.draw()
 
   -- ! draw each individual tile
 	-- first, get each lane
-	for k, lane in pairs(board.lanes) do
+	for _, lane in pairs(board.lanes) do
 		-- then, get each tile in that lane
 		for _, tile in pairs(lane) do
       love.graphics.setColor(tile.color)
@@ -567,6 +567,7 @@ function board.draw()
 
 	-- draw the info panel
   love.graphics.setColor({255,255,255})
+  InfoPanelSuit.theme.color.normal.fg = {255,255,255}
   InfoPanelSuit:draw()
 
 	-- draw the turn counter

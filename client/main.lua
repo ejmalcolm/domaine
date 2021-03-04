@@ -19,7 +19,7 @@ ascendantList = require("references/ascendantList")
 suit = require("modules/suit")
 inspect = require("modules/inspect")
 bitser = require("modules/bitser")
-local sock = require("modules/sock")
+sock = require("modules/sock")
 
 -- * helpful variables and global functions
 local currentScreen
@@ -274,6 +274,7 @@ function TriggerEvent(event, triggerArgs)
 end
 
 function changeScreen(screen)
+  if currentScreen then LastScreen = currentScreen print(LastScreen) end
   if screen.load then screen.load() end
   currentScreen = screen
 end
@@ -463,7 +464,7 @@ function love.update(dt)
   -- * quit the game with escape!
   if love.keyboard.isDown('escape') then love.event.quit() end
 
-    -- control the multiplayer stuff
+  -- control the multiplayer stuff
   if Connected then
     client:update()
   end
@@ -480,10 +481,17 @@ function love.update(dt)
   -- create SliderPopups
   UpdateSliderPopups()
 
+  -- if we're not on the board, draw a back button in the top left
+  if LastScreen then
+    local backButton = suit.Button('<-', 0,0,20,20)
+    if backButton.hit then changeScreen(LastScreen) end
+  end
+
   -- get coordinates
   x, y = love.graphics.getDimensions()
   centerX = Round(x/2)
   centerY = Round(y/2)
+
   -- update the current screen
   currentScreen.update(dt)
 end

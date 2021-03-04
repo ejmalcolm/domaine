@@ -1,0 +1,17 @@
+This is how the server infrastructure works for BrowseLobbies.
+
+PASSIVELY:
+1) Upon opening the BrowseLobbies screen, the client connects to the LobbyServer.
+2) The client polls the LobbyServer and retrieves the ActiveLobbies table.
+3) The client draws the GUI using the information from ActiveLobbies.
+4) Stable loop: 2-3
+
+WHEN "HOST LOBBY" BUTTON IS HIT:
+1) The client sends a "hostLobby" message to LobbyServer
+2) The LobbyServer adds an entry to the ActiveLobbies table, matching the hostLobby data
+3) The client marks itself as hasLobbyOpen=true, stopping it from making any more lobbies
+
+WHEN A LOBBY IS HIT:
+1) check that it is not the lobby creator hitting it
+2) If it is not, the server creates a new sendChannel and marks it as in use by the two clients
+3) The server then tells the two clients to move to armyBuild

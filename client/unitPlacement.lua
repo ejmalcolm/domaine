@@ -7,6 +7,8 @@ end
 
 function unitPlacement.load()
 
+  UnitPlacementInfoSuit = suit.new()
+
   unitPlacement.pRects = {}
 
   unitPlacement.pRects.r = {}
@@ -31,21 +33,33 @@ function unitPlacement.update(dt)
   for k, pRect in pairs(unitPlacement.pRects) do
 
       -- create armyList buttons underneath each pRect
-      -- each of these lists is "tagged" with the pRect its 
+      -- each of these lists is "tagged" with the pRect its in
 
       -- use the x-coord of the pRect to place the button
       suit.layout:reset(AdjustCenter(pRect.rect[1], 'X'), AdjustCenter(pRect.rect[2]+110, 'Y'))
       for unitKey, unitName in pairs(unitPlacement.armyList) do
-          -- the ID is: pRect#+unitName+index
-          -- where pRect# is 1=r, 2=y, 3=g
-          suit.Button(unitName, {id = k..unitName..tostring(unitKey)}, suit.layout:row(100,20))
+        -- the ID is: pRect#+unitName+index
+        -- where pRect# is 1=r, 2=y, 3=g
+          local armyListButton = suit.Button(unitName, {id = k..unitName..tostring(unitKey)}, suit.layout:row(100,20))
+          if armyListButton.hovered then
+            local v = unitList[unitName]
+            UnitPlacementInfoSuit.layout:reset(AdjustCenter(pRect.rect[1]-50,'X'), AdjustCenter(pRect.rect[2]+225, 'Y'))
+            -- name
+            UnitPlacementInfoSuit:Label(unitName, UnitPlacementInfoSuit.layout:row(200,20))
+            -- stats
+            local cst, atk, hp = v[1], v[2], v[3]
+            local statstring = string.format('Cost: %i | ATK: %i | HP: %i', cst, atk, hp)
+            UnitPlacementInfoSuit:Label(statstring, UnitPlacementInfoSuit.layout:row(200,20))
+            -- special
+            UnitPlacementInfoSuit:Label(v.special['fullDesc'], UnitPlacementInfoSuit.layout:row(200,20))
+          end
       end
 
       -- when an armyList button is clicked,
       -- 1) remove from "active" armyList
       -- 2) place that button "into" the square
       for unitKey, unitName in pairs(unitPlacement.armyList) do
-          -- using the above defined (line 33) pRect-based ID
+          -- using the above defined pRect-based ID
           if suit.isHit(k..unitName..tostring(unitKey)) then
               table.remove(unitPlacement.armyList, unitKey)
               table.insert(pRect.content, unitName)
@@ -56,11 +70,23 @@ function unitPlacement.update(dt)
 
       suit.layout:reset(AdjustCenter(pRect.rect[1],'X'), AdjustCenter(pRect.rect[2]-30, 'Y'))
       for unitKey, unitName in pairs(pRect.content) do
-          -- the ID is: pRect#+unitName+index
-          -- where pRect# is 1=r, 2=y, 3=g
-          -- * we add the 'PRC' because we need to distinguish the P Rect Content
-          -- * buttons from the armyList buttons, else they trigger each other
-          suit.Button(unitName, {id = 'PRC'..k..unitName..tostring(unitKey)}, suit.layout:up(100, 20))
+        -- the ID is: pRect#+unitName+index
+        -- where pRect# is 1=r, 2=y, 3=g
+        -- * we add the 'PRC' because we need to distinguish the P Rect Content
+        -- * buttons from the armyList buttons, else they trigger each other
+        local inRectButton = suit.Button(unitName, {id = 'PRC'..k..unitName..tostring(unitKey)}, suit.layout:up(100, 20))
+          if inRectButton.hovered then
+            local v = unitList[unitName]
+            UnitPlacementInfoSuit.layout:reset(AdjustCenter(pRect.rect[1]-50,'X'), AdjustCenter(pRect.rect[2]+225, 'Y'))
+            -- name
+            UnitPlacementInfoSuit:Label(unitName, UnitPlacementInfoSuit.layout:row(200,20))
+            -- stats
+            local cst, atk, hp = v[1], v[2], v[3]
+            local statstring = string.format('Cost: %i | ATK: %i | HP: %i', cst, atk, hp)
+            UnitPlacementInfoSuit:Label(statstring, UnitPlacementInfoSuit.layout:row(200,20))
+            -- special
+            UnitPlacementInfoSuit:Label(v.special['fullDesc'], UnitPlacementInfoSuit.layout:row(200,20))
+          end
       end
 
       -- when a pRect content button is clicked,
@@ -98,6 +124,7 @@ function unitPlacement.draw()
       love.graphics.rectangle('line', AdjustCenter(x, 'X'), AdjustCenter(y, 'Y'),w,h)
   end
 
+  UnitPlacementInfoSuit:draw()
   suit.draw()
 
 end
