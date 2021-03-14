@@ -6,25 +6,25 @@ AscendantVictories = require("AscendantVictories")
 
 function CreateMasterLanes()
 	MasterLanes = {}
-
-
+  
+  
 	-- the structures is MasterLanes.LANENAME.[TILE#]
 	-- where LANENAME = r, y, g
 	-- TILE# = 1, 2, 3
   for k1, lane in pairs({'r', 'y', 'b'}) do
-
+    
 		MasterLanes[lane] = {}
     for k2, _ in pairs( {'_', '_', '_'} ) do
-
+      
 			-- define the tile
       MasterLanes[lane][k2] = {}
       MasterLanes[lane][k2].l = lane
       MasterLanes[lane][k2].t = k2
-
+      
       -- {x, y, w, h}
       MasterLanes[lane][k2].rect = {135+(340*(k1-1)), 45+(213*(k2-1)), 330, 200}
       MasterLanes[lane][k2].content = {}
-
+      
 			-- set the color
 			if lane == 'r' then
 				MasterLanes[lane][k2].color = {1, 0, 0}
@@ -33,9 +33,10 @@ function CreateMasterLanes()
 			elseif lane == 'b' then
 				MasterLanes[lane][k2].color = {0,0,1}
       end
-
+      
 		end
 	end
+  
 end
 
 -- ! UTILITY FUNCTIONS
@@ -78,6 +79,7 @@ function tileRefToTile(tileRef, client)
     error('Error determining player in tileRefToActual')
   end
   local laneCode = tileRef:sub(1,1)
+  print(laneCode)
   local tileCode = translator[tileRef:sub(2,2)]
   local tile = MasterLanes[laneCode][tileCode]
   return tile, laneCode..tileCode
@@ -86,6 +88,7 @@ end
 function distanceBetweenTiles(tile1, tile2)
   -- * returns the distance between two tiles in the same lane
   -- first, check they're in the same lane
+  print(tile1.l, tile2.l)
   if tile1.l ~= tile2.l then
     print('Tiles are not in the same lane!')
     return false
@@ -189,6 +192,7 @@ function love.load()
 
   Players = {}
 
+  MatchStateIndex = {}
   MatchState = {}
   MatchState.DeadUnits = {}
 
@@ -212,9 +216,9 @@ function love.load()
     local pNum = getPlayer(client)
     print(pNum, inspect(PreMatchData))
     MatchState['Player'..pNum] = PreMatchData
-    -- -- ! TESTING FORK: FAKE PLAYER
+    -- ! TESTING FORK: FAKE PLAYER
     Players[2] = true
-    MatchState['Player2'] = {ActionTable={1,1,1},AscendantIndex=2,HasIncarnatePower=true,HasMajorPower=true,HasMinorPower=true}
+    MatchState['Player2'] = {ActionTable={1,0,1},AscendantIndex=2,HasIncarnatePower=true,HasMajorPower=true,HasMinorPower=true}
   end)
 
   -- used to keep track of how many unit there are
@@ -225,13 +229,12 @@ function love.load()
   -- create the master copy of the lanes
   CreateMasterLanes()
 
-  -- TODO: remove
+  -- ! TESTING FORK: FAKE UNITS
   MasterLanes['r'][3].content = {
     {uid='1', name='Siren', player=2, cost=1, attack=1, health=2, tile='r3', specTable={shortDesc=2, fullDesc=1, tags={} } },
     {uid='2', name='2', player=2, cost=1, attack=1, health=2, tile='r3', specTable={shortDesc=2, fullDesc=1, tags={} } },
     {uid='3', name='3', player=2, cost=1, attack=1, health=2, tile='r3', specTable={shortDesc=2, fullDesc=1, tags={} } }
                                 }
-  -- TODO: remove
 
   -- {uid=unitName..UnitCount,name=unitName,
   -- player=getPlayer(client),cost=cst,attack=atk,
@@ -366,7 +369,7 @@ function love.load()
 
   server:on("unitMove", function(data, client)
     print('Received unitMove')
-    local unit, oldTileRef, newTileRef = data[1], data[2], data[3]
+    local unit, oldTileRef, newTileRef, isBasicMove = data[1], data[2], data[3], data[4]
 
     -- first, we check unitMoveIn and unitMoveOut for all units in the old and new tile
     local oldTile, newTile = tileRefToTile(oldTileRef), tileRefToTile(newTileRef)
@@ -378,7 +381,7 @@ function love.load()
     end
 
     for _, newUnit in pairs(newTile.content) do
-      handleEvent("unitMoveIn", {newUnit}, {unit, oldTileRef, newTileRef, newUnit})
+      handleEvent("unitMoveIn", {newUnit}, {unit, oldTileRef, newTileRef, newUnit, isBasicMove})
     end
 
     handleEvent("unitMoveOut", outUnits, {unit, oldTileRef, newTileRef})
@@ -391,7 +394,7 @@ function love.load()
 
 
     -- handle the unit movement event
-    handleEvent("unitMove", {unit}, {unit, oldTileRef, newTileRef})
+    handleEvent("unitMove", {unit}, {unit, oldTileRef, newTileRef, isBasicMove})
     -- update the board
     server:sendToAll("updateLanes", MasterLanes)
   end)
@@ -574,7 +577,6 @@ function love.load()
     for player,_ in pairs(Players) do
       local ascIndex = MatchState['Player'..player]['AscendantIndex']
       local asc = AscendantVictories[ascIndex]
-      print('testing parallel!')
       if asc.victoryFunc(player) then
         local winner = getPeer(Players[player])
         local loser
@@ -599,6 +601,7 @@ function love.load()
     CurrentTurnTaker = newTurnTaker
     print('It is now '..newTurnTaker.."'s turn.")
     -- ! TESTING FORK - ONE PLAYER TURN CONTROLS
+    -- server:sendToAll("setPlayerTurn", 1)
     server:sendToAll("setPlayerTurn", newTurnTaker)
   end)
  

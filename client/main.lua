@@ -274,7 +274,7 @@ function TriggerEvent(event, triggerArgs)
 end
 
 function changeScreen(screen)
-  if currentScreen then LastScreen = currentScreen print(LastScreen) end
+  if currentScreen then LastScreen = currentScreen end
   if screen.load then screen.load() end
   currentScreen = screen
 end
@@ -394,7 +394,7 @@ function connectToHost(ip)
     print('Player '..CurrentTurnTaker..'\'s turn ended.')
     print('It is now Player'..playerN..'\'s turn')
     -- reset available actions for both players
-    ActionsRemaining.primary, ActionsRemaining.secondary = 1,2
+    ChangePlayerVar('ActionTable', {1, 1, 1})
     CurrentTurnTaker = playerN
   end)
 
@@ -482,7 +482,7 @@ function love.update(dt)
   UpdateSliderPopups()
 
   -- if we're not on the board, draw a back button in the top left
-  if LastScreen then
+  if LastScreen and currentScreen ~= board then
     local backButton = suit.Button('<-', 0,0,20,20)
     if backButton.hit then changeScreen(LastScreen) end
   end

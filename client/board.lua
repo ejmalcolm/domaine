@@ -28,7 +28,7 @@ function TileSelection()
       end
 
       local tileX, tileY = AdjustCenter(tile.rect[1], 'X'), AdjustCenter(tile.rect[2], 'Y')
-      local selectButton = suit.Button(laneKey..tileKey, tileX+40, tileY+40, 20, 20)
+      local selectButton = suit.Button(laneKey..tileKey, tileX+40, tileY+65, 20, 20)
       
       if selectButton.hit then
         AskingForTile = false
@@ -41,6 +41,18 @@ end
 
 function GetPlayerVar(name)
   return (MatchState['Player'..playerNumber])[name]
+end
+
+function GetActionAmount(type)
+  local translator = {move=1,attack=2,special=3}
+  return GetPlayerVar('ActionTable')[translator[type]]
+end
+
+function ChangeActionAmount(type, new_amount)
+  local newActionTable = GetPlayerVar('ActionTable')
+  local translator = {move=1,attack=2,special=3}
+  newActionTable[translator[type]] = new_amount
+  ChangePlayerVar('ActionTable', newActionTable)
 end
 
 function board.load()
@@ -56,7 +68,8 @@ function board.load()
 			-- define the tile
 			board.lanes[lane][k2] = {}
 			-- fancy coordinate mathematics not really fancy
-      board.lanes[lane][k2].rect = {195+(340*(k1-1)), 100+(187*(k2-1)), 200, 150}			board.lanes[lane][k2].content = {}
+      board.lanes[lane][k2].rect = {195+(340*(k1-1)), 100+(187*(k2-1)), 200, 150}
+      board.lanes[lane][k2].content = {}
 			-- set the color
 			if lane == 'r' then
 				board.lanes[lane][k2].color = {1, 0, 0}
@@ -104,9 +117,6 @@ function board.load()
   MajorPowerButton = love.graphics.newImage('images/BoardUI/MajorButton.png')
   MinorPowerButton = love.graphics.newImage('images/BoardUI/MinorButton.png')
   IncarnatePowerButton = love.graphics.newImage('images/BoardUI/IncarnateButton.png')
-
-  -- ! used to manage the turn system
-  ActionsRemaining = {primary=1, secondary=2}
 
 end
 
@@ -192,7 +202,7 @@ function board.update(dt)
           CPanelSuit.layout:reset(tile.rect[1]+5+(84*(alliesInTile-1)), tile.rect[2]+69)
           CPanelSuit.layout:reset(unitButton.x-20, unitButton.y)
           -- * we only create the parts of the panel that can be used
-
+          
           -- ! UNIT QUICK CONTROLS
           if isMyTurn() and (ActiveUnit.player == playerNumber) and (love.keyboard.isDown('lctrl')) then
 
@@ -278,9 +288,8 @@ function board.update(dt)
             --     end
             --   end
             -- end
-
-          end
-
+          end 
+        
         end
 
         -- ! INFOPANEL
@@ -332,30 +341,23 @@ function board.update(dt)
 
   ActionCounterSuit:ImageButton(ActionCounter, ActionCounterSuit.layout:row(126, 38))
 
-  -- counter for amount of primary actions
-  local primaryText = string.format('%s Primary Action', ActionsRemaining.primary)
-  -- pluralize
-  if ActionsRemaining.primary ~= 1 then primaryText = primaryText..'s' end
-
-  -- counter for amount of secondary actions
-  local secondaryText = string.format('%s Secondary Action', ActionsRemaining.secondary)
-  -- pluralize
-  if ActionsRemaining.secondary ~= 1 then secondaryText = secondaryText..'s' end
-
   local font = love.graphics.newFont(16) -- the number denotes the font size
   love.graphics.setFont(font)
 
+  -- get the current turn taker's action count
+  local currentActionTable = MatchState['Player'..CurrentTurnTaker]['ActionTable']
+
   -- attack actions
   ActionCounterLabelsSuit.layout:reset(1150, 15)
-  ActionCounterLabelsSuit:Label('1', ActionCounterLabelsSuit.layout:row(20, 20))
+  ActionCounterLabelsSuit:Label(currentActionTable[1], ActionCounterLabelsSuit.layout:row(20, 20))
 
   -- move actions
   ActionCounterLabelsSuit.layout:reset(1190, 15)
-  ActionCounterLabelsSuit:Label('1', ActionCounterLabelsSuit.layout:row(20, 20))
+  ActionCounterLabelsSuit:Label(currentActionTable[2], ActionCounterLabelsSuit.layout:row(20, 20))
 
   -- special actions
   ActionCounterLabelsSuit.layout:reset(1230, 15)
-  ActionCounterLabelsSuit:Label('1', ActionCounterLabelsSuit.layout:row(20, 20))
+  ActionCounterLabelsSuit:Label(currentActionTable[3], ActionCounterLabelsSuit.layout:row(20, 20))
 
   local font = love.graphics.newFont(12) -- the number denotes the font size
   love.graphics.setFont(font)
@@ -371,8 +373,16 @@ function board.update(dt)
     local tileRef = ActiveUnit.tile
     local laneKey, tileKey = tileRef:sub(1,1), tonumber(tileRef:sub(2,2))
 
+    -- at the top of the control bar, write the name of the unit
+    InfoPanelSuit.layout:reset(18, 168)
+    InfoPanelSuit:Label(ActiveUnit.name, InfoPanelSuit.layout:row(100,20))
+
     if ActiveUnit.player == playerNumber and isMyTurn() then
 
+
+      if GetActionAmount('move') == 0 then goto skipMoves end
+      if not ActiveUnit.canMove then goto skipMoves end
+      -- MOVE UP
       CBarOrbsSuit.layout:reset(45, 223)
       if tileKey ~= 1 then
         local UpOrbButton = CBarOrbsSuit:ImageButton(MoveUpOrb, CBarOrbsSuit.layout:row(46, 39))
@@ -380,14 +390,16 @@ function board.update(dt)
           -- then, figure out what tile is below
           local newTileKey = tileKey-1
           local newTileRef = laneKey..newTileKey
+          -- use action
+          ChangeActionAmount('move', GetActionAmount('move')-1)
           -- then, send the move message to the server
-          client:send("unitMove", {ActiveUnit, tileRef, newTileRef})
+          client:send("unitMove", {ActiveUnit, tileRef, newTileRef, true})
           ActiveUnit = nil
-          -- TODO: action
         end
       end
       ::skipUp::
 
+      -- MOVE DOWN
       CBarOrbsSuit.layout:reset(45, 281)
       if tileKey ~= 3 then
         local DownOrbButton = CBarOrbsSuit:ImageButton(MoveDownOrb, CBarOrbsSuit.layout:row(46, 39))
@@ -395,45 +407,60 @@ function board.update(dt)
           -- then, figure out what tile is below
           local newTileKey = tileKey+1
           local newTileRef = laneKey..newTileKey
+          -- use action
+          ChangeActionAmount('move', GetActionAmount('move')-1)
           -- then, send the move message to the server
-          client:send("unitMove", {ActiveUnit, tileRef, newTileRef})
+          client:send("unitMove", {ActiveUnit, tileRef, newTileRef, true})
           ActiveUnit = nil
           -- TODO: action
         end
       end
       ::skipDown::
+      ::skipMoves::
 
-      CBarOrbsSuit.layout:reset(45, 339)
-      local AttackOrbButton = CBarOrbsSuit:ImageButton(AttackOrb, CBarOrbsSuit.layout:row(46, 39))
-      if AttackOrbButton.hit then
-        -- create an alert asking for an attack target
-        CreateAlert('Select an attack target.', 5)
-        -- queue up an attack  on a enemyTarget
-        WaitFor("targetEnemy", function(targetEnemy)
+      if GetActionAmount('attack') == 0 then goto skipAttack end
+      if not ActiveUnit.canAttack then goto skipAttack end
+      -- ATTACK
+      do
+        CBarOrbsSuit.layout:reset(45, 339)
+        local AttackOrbButton = CBarOrbsSuit:ImageButton(AttackOrb, CBarOrbsSuit.layout:row(46, 39))
+        if AttackOrbButton.hit then
+          -- create an alert asking for an attack target
+          CreateAlert('Select an attack target.', 5)
+          -- queue up an attack on a enemyTarget
+          local attacker = ActiveUnit
+          WaitFor("targetEnemy", function(targetEnemy)
+            client:send("unitTargetCheck", {targetEnemy, attacker, {canBeAttacked=true, distanceBetweenIs=0}, {} })
 
-          client:send("unitTargetCheck", {targetEnemy, ActiveUnit, {canBeAttacked=true}, {} })
+            WaitFor(targetEnemy.uid.."TargetSucceed", function()
+              ChangeActionAmount('attack', GetActionAmount('attack')-1)
+              client:send("unitAttack", {attacker, targetEnemy})
+              ActiveUnit = nil
+            end, {'triggerArgs'})
 
-          WaitFor(targetEnemy.uid.."TargetSucceed", function()
-            client:send("unitAttack", {ActiveUnit, targetEnemy})
-            ActiveUnit = nil
           end, {'triggerArgs'})
-
-        end, {'triggerArgs'})
-        
+          
+        end
       end
       ::skipAttack::
 
-      CBarOrbsSuit.layout:reset(45, 396)
-      local SpecialOrbButton = CBarOrbsSuit:ImageButton(SpecialOrb, CBarOrbsSuit.layout:row(46, 39))
-      if SpecialOrbButton.hit then
-        local specFunc = unitSpecs[ActiveUnit.specTable.specRef]
-        specFunc(ActiveUnit)
-        ActiveUnit = nil
+      if GetActionAmount('special') == 0 then goto skipSpecial end
+      if not ActiveUnit.canSpecial then goto skipSpecial end
+      -- SPECIAL
+      do
+        CBarOrbsSuit.layout:reset(45, 396)
+        local SpecialOrbButton = CBarOrbsSuit:ImageButton(SpecialOrb, CBarOrbsSuit.layout:row(46, 39))
+        if SpecialOrbButton.hit then
+          local specFunc = unitSpecs[ActiveUnit.specTable.specRef]
+          specFunc(ActiveUnit)
+          ActiveUnit = nil
+        end
       end
       ::skipSpecial::
 
     end
 
+    -- INSPECT * note that it is NOT in the previous if block (you don't need to control it)
     CBarOrbsSuit.layout:reset(45, 454)
     local InspectOrbButton = CBarOrbsSuit:ImageButton(InspectOrb, CBarOrbsSuit.layout:row(46, 39))
     if InspectOrbButton.hit then
@@ -443,7 +470,7 @@ function board.update(dt)
 
     -- ! imperator bridge
     CBarOrbsSuit.layout:reset(45, 540)
-    if ActiveImperatorBridge then
+    if ActiveImperatorBridge and GetActionAmount('move') ~= 0 then
 
       -- if unit is in the tile with the bridge
       if (ActiveImperatorBridge[1] == tileRef) or (ActiveImperatorBridge[2] == tileRef) then
@@ -453,9 +480,9 @@ function board.update(dt)
           local tileToTravelTo
           if ActiveImperatorBridge[1] == tileRef then tileToTravelTo = ActiveImperatorBridge[2]
           elseif ActiveImperatorBridge[2] == tileRef then tileToTravelTo = ActiveImperatorBridge[1] end
-          client:send("unitMove", {ActiveUnit, tileRef, tileToTravelTo})
+          client:send("unitMove", {ActiveUnit, tileRef, tileToTravelTo, true})
           ActiveUnit = nil
-          -- TODO: action
+          ChangeActionAmount('move', GetActionAmount('move')-1)
         end
 
       end
@@ -466,7 +493,7 @@ function board.update(dt)
 
   -- ! ASCENDANT ACTIONS
   if isMyTurn() then
-    APanelSuit.layout:reset(453, 683)
+    APanelSuit.layout:reset(433, 683)
 
     -- major action
     if GetPlayerVar('HasMajorPower') then
@@ -479,7 +506,7 @@ function board.update(dt)
       end
     end
 
-    APanelSuit.layout:reset(595, 683)
+    APanelSuit.layout:reset(575, 683)
     -- minor power
     if GetPlayerVar('HasMinorPower') then
       local minorPower = APanelSuit:ImageButton(MinorPowerButton, APanelSuit.layout:row(126,27))
@@ -499,7 +526,7 @@ function board.update(dt)
       end
     end
 
-    APanelSuit.layout:reset(736, 683)
+    APanelSuit.layout:reset(716, 683)
     -- incarnate
     if GetPlayerVar('HasIncarnatePower') then
       local incarnate = APanelSuit:ImageButton(IncarnatePowerButton, APanelSuit.layout:row(126,27))
@@ -507,7 +534,7 @@ function board.update(dt)
         local ascIndex = GetPlayerVar('AscendantIndex')
         local asc = ascendantList[ascIndex]
         asc.incarnateFunc()
-        ChangePlayerVar('HasAscendantPower', false)
+        ChangePlayerVar('HasIncarnatePower', false)
       end
     end
 
@@ -524,10 +551,10 @@ function board.update(dt)
   -- * check if out of actions (end turn)
   -- only check if it's your turn to begin with
   if isMyTurn() then
-    if (ActionsRemaining.primary == 0) and (ActionsRemaining.secondary == 0) then
-      print('Player out of actions')
-      client:send("endMyTurn", {})
-    end
+    -- if (ActionsRemaining.primary == 0) and (ActionsRemaining.secondary == 0) then
+    --   print('Player out of actions')
+    --   client:send("endMyTurn", {})
+    -- end
   end
 
 end
