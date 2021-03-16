@@ -1,7 +1,7 @@
 local AscendantVictories = {}
 
-local function sacramentVictory(player)
-  local ChosenKillCount = MatchState['Player'..player]['ChosenKillCount'] or 0
+local function sacramentVictory(pNum, matchState)
+  local ChosenKillCount = matchState['Player'..pNum]['ChosenKillCount'] or 0
   return ChosenKillCount >= 3
 end
 
@@ -97,15 +97,15 @@ AscendantVictories[4] = {
   victoryFunc=sleeperVictory
 }
 
-local function savantVictory(player)
-  if MatchState.turnNumber == MatchState['Player'..player]['SavantVictoryTurn'] then
+local function savantVictory(pNum, matchState)
+  if matchState.TurnNumber == matchState['Player'..pNum]['SavantVictoryTurn'] then
     local alliedUnits, enemyUnits = 0, 0
-    for _, lane in pairs(MasterLanes) do
+    for _, lane in pairs(matchState.MasterLanes) do
       for _, tile in pairs(lane) do
         for _, unit in pairs(tile.content) do
-          if unit.player == player then
+          if unit.player == pNum then
             alliedUnits = alliedUnits + 1
-          elseif unit.player ~= player then
+          elseif unit.player ~= pNum then
             enemyUnits = enemyUnits + 1
           end
         end

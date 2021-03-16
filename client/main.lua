@@ -290,18 +290,21 @@ function connectToHost(ip)
   -- on connection
   client:on("connect", function(data)
     print('Successfully connected!')
+    client:send("joinMatch", 1)
   end)
 
   -- for getting the player index (p1 or p2)
-  client:on("setUpGame", function(num)
-    playerNumber = num
+  client:on("setUpGame", function(data)
+    -- store playerNumber and matchID
+    playerNumber, matchID = unpack(data)
     print('Client player number: '..playerNumber)
+    print('Client assigned to match ID: '..matchID)
     -- send over the pregame data
     PreMatchData['HasMajorPower'] = true
     PreMatchData['HasMinorPower'] = true
     PreMatchData['HasIncarnatePower'] = true
     PreMatchData['ActionTable'] = {1, 1, 1}
-    client:send("transferPreMatchData", PreMatchData)
+    client:send("transferPreMatchData", {matchID, PreMatchData})
     -- send to waiting screen
     changeScreen(WaitingScreen)
   end)

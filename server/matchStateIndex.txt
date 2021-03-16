@@ -1,0 +1,43 @@
+{ {
+    ClientIndex = { 2487020959 },
+    CurrentTurnTaker = 1,
+    MasterLanes = {
+      b = { {
+          color = { 0, 0, 1 },
+          content = {},
+          l = "b",
+          rect = { 815, 45, 330, 200 },
+          t = 1
+        }, {
+          color = { 0, 0, 1 },
+          content = {},
+          l = "b",
+          rect = { 815, 258, 330, 200 },
+          t = 2
+        }, {
+          color = { 0, 0, 1 },
+          content = {},
+          l = "b",
+          rect = { 815, 471, 330, 200 },
+          t = 3
+        } } 
+    },
+    Phase = "inProgress",
+    Player1 = {
+      ActionTable = { 1, 1, 1 },
+      AscendantIndex = 1,
+      HasIncarnatePower = true,
+      HasMajorPower = true,
+      HasMinorPower = true
+    },
+    Player2 = {
+      ActionTable = { 1, 0, 1 },
+      AscendantIndex = 2,
+      HasIncarnatePower = true,
+      HasMajorPower = true,
+      HasMinorPower = true
+    },
+    TimedEventQueue = {},
+    TimedFuncQueue = {},
+    TurnNumber = 1
+  } }

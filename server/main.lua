@@ -4,100 +4,112 @@ inspect = require("inspect")
 UnitList = require("unitList")
 AscendantVictories = require("AscendantVictories")
 
-function CreateMasterLanes()
-	MasterLanes = {}
-  
-  
-	-- the structures is MasterLanes.LANENAME.[TILE#]
-	-- where LANENAME = r, y, g
-	-- TILE# = 1, 2, 3
+function CreateMasterLanes(matchID)
+	MatchStateIndex[matchID].MasterLanes = {}
+
   for k1, lane in pairs({'r', 'y', 'b'}) do
-    
-		MasterLanes[lane] = {}
+		MatchStateIndex[matchID].MasterLanes[lane] = {}
+
     for k2, _ in pairs( {'_', '_', '_'} ) do
-      
+
 			-- define the tile
-      MasterLanes[lane][k2] = {}
-      MasterLanes[lane][k2].l = lane
-      MasterLanes[lane][k2].t = k2
-      
+      MatchStateIndex[matchID].MasterLanes[lane][k2] = {}
+      MatchStateIndex[matchID].MasterLanes[lane][k2].l = lane
+      MatchStateIndex[matchID].MasterLanes[lane][k2].t = k2
+
       -- {x, y, w, h}
-      MasterLanes[lane][k2].rect = {135+(340*(k1-1)), 45+(213*(k2-1)), 330, 200}
-      MasterLanes[lane][k2].content = {}
-      
+      MatchStateIndex[matchID].MasterLanes[lane][k2].rect = {135+(340*(k1-1)), 45+(213*(k2-1)), 330, 200}
+      MatchStateIndex[matchID].MasterLanes[lane][k2].content = {}
+
 			-- set the color
 			if lane == 'r' then
-				MasterLanes[lane][k2].color = {1, 0, 0}
+				MatchStateIndex[matchID].MasterLanes[lane][k2].color = {1, 0, 0}
 			elseif lane == 'y' then
-				MasterLanes[lane][k2].color = {1, 1, 0}
+				MatchStateIndex[matchID].MasterLanes[lane][k2].color = {1, 1, 0}
 			elseif lane == 'b' then
-				MasterLanes[lane][k2].color = {0,0,1}
+				MatchStateIndex[matchID].MasterLanes[lane][k2].color = {0,0,1}
       end
-      
 		end
 	end
-  
+end
+
+function SendToMatch(matchID, event, data_to_send)
+  for _, CID in pairs(MatchStateIndex[matchID]['ClientIndex']) do
+    local peer = GetPeerByCID(CID)
+    server:sendToPeer(peer, event, data_to_send)
+  end
 end
 
 -- ! UTILITY FUNCTIONS
 
-function getPlayer(client)
-  if Players[1] == client then
-    return 1
-  elseif Players[2] == client then
-    return 2
-  else
-    print('Error determining player')
-    error()
+function GetPNumAndMatchID(client)
+  -- we look at MatchStateIndex
+  for matchID, matchState in pairs(MatchStateIndex) do
+
+    if not matchState['ClientIndex'] then goto skip end
+    for pNum, saved_client in pairs(matchState['ClientIndex']) do
+      if client.connectId == saved_client then return pNum, matchID end
+    end
+    ::skip::
+
   end
+  return false
 end
 
-function getPeer(client)
+function GetPeerByCID(CID)
+  -- * returns the enet peer object associated with a connectId
+  local client = CIDTranslator[CID]
+  return server:getPeerByIndex(client:getIndex())
+end
+
+function GetPeerByClient(client)
   -- * returns the enet peer object associated with the given client
   -- ? i have 0 idea why this isn't in the base package
   return server:getPeerByIndex(client:getIndex())
 end
 
-function tileRefToTile(tileRef, client)
+function TileRefToTile(tileRef, client)
   -- translates a tileRef (rA or r1) to an actual tile (MasterLanes.r[1])
+
+  local pNum, matchID = GetPNumAndMatchID(client)
+  local masterLanes = MatchStateIndex[matchID].MasterLanes
+  local clientIndex = MatchStateIndex[matchID].ClientIndex
+
   -- first, handle the r1 case
   -- we check if the second character is a number through tonumber
   -- returns nil if its a string
   if not (tonumber(tileRef:sub(2,2)) == nil) then
     local laneCode = tileRef:sub(1,1)
     local tileCode = tonumber(tileRef:sub(2,2))
-    local tile = MasterLanes[laneCode][tileCode]
+    local tile = masterLanes[laneCode][tileCode]
     return tile, tileRef
   end
   -- then, handle the rA case
   local translator
-  if Players[1] == client then
+  if clientIndex[1] == client.connectId then
     translator = {A=3, B=2, C=1}
-  elseif Players[2] == client then
+  elseif clientIndex[2] == client.connectId then
     translator = {A=1, B=2, C=3}
   else
     error('Error determining player in tileRefToActual')
   end
   local laneCode = tileRef:sub(1,1)
-  print(laneCode)
   local tileCode = translator[tileRef:sub(2,2)]
-  local tile = MasterLanes[laneCode][tileCode]
+  local tile = masterLanes[laneCode][tileCode]
   return tile, laneCode..tileCode
 end
 
-function distanceBetweenTiles(tile1, tile2)
+function DistanceBetweenTiles(tile1, tile2)
   -- * returns the distance between two tiles in the same lane
   -- first, check they're in the same lane
-  print(tile1.l, tile2.l)
   if tile1.l ~= tile2.l then
-    print('Tiles are not in the same lane!')
     return false
   else
     return math.abs(tile1.t - tile2.t)
   end
 end
 
-local function adjacentLanes(lane1, lane2)
+function AdjacentLanes(lane1, lane2)
   -- * note: lanes are not adjacent to themselves
   if lane1 == 'r' then
     if lane2 ~= 'y' then return false end
@@ -110,7 +122,7 @@ local function adjacentLanes(lane1, lane2)
   return true
 end
 
-function findUnitIndex(unitToFind, tileToSearch)
+function FindUnitIndex(unitToFind, tileToSearch)
   for index, unitTable in pairs(tileToSearch.content) do
     -- find the thing in the content table
     if unitTable.uid == unitToFind.uid then
@@ -120,9 +132,11 @@ function findUnitIndex(unitToFind, tileToSearch)
   end
 end
 
-function FindUnitByID(uidToFind)
-  -- TODO: optimize, only run tiles that have units in them?
-  for laneKey, lane in pairs(MasterLanes) do
+function FindUnitByID(client, uidToFind)
+  local pNum, matchID = GetPNumAndMatchID(client)
+  local matchState = MatchStateIndex[matchID]
+
+  for laneKey, lane in pairs(matchState.MasterLanes) do
     for tileKey, tile in pairs(lane) do
       -- optimization: if a tile has nothing in it, skip it
       if not tile.content then goto nextTile end
@@ -141,8 +155,8 @@ end
 -- ! EVENT HANDLER
 
 -- * obtains the specRefs of the unit associated with the given event
--- * e.g. getSpecRef(knight, "onAttack") -> onAttack|knightPassive -> "knightPassive"
-local function getSpecRefs(unit, event)
+-- * e.g. GetSpecRef(knight, "onAttack") -> onAttack|knightPassive -> "knightPassive"
+function GetSpecRefs(unit, event)
   local tags = unit.specTable['tags']
   local specRefs = {}
   for tag, _ in pairs(tags) do
@@ -156,24 +170,27 @@ local function getSpecRefs(unit, event)
   if #specRefs==0 then return false else return specRefs end
 end
 
-function handleEvent(eventName, unitsInvolved, data)
+function HandleEvent(client, eventName, unitsInvolved, data)
   -- * handles various events that occur in the game
+  local pNum, matchID = GetPNumAndMatchID(client)
+  local matchState = MatchStateIndex[matchID]
+
 
   if eventName == 'unitDeath' then
     for _, unit in pairs(unitsInvolved) do
-      table.insert(MatchState.DeadUnits, unit)
+      table.insert(matchState.DeadUnits, unit)
     end
-    server:sendToAll("updateVar", {'global', 'DeadUnits', MatchState.DeadUnits})
+    SendToMatch(matchID, "updateVar", {'global', 'DeadUnits', matchState.DeadUnits})
   end
 
   for _, unit in pairs(unitsInvolved) do
     -- get the specRef associated with the event being handled
     -- returns false if the unit has no tag for this event
-    local specRefs = getSpecRefs(unit, eventName)
+    local specRefs = GetSpecRefs(unit, eventName)
     if specRefs then
       for _, specRef in pairs(specRefs) do
-        local client = Players[unit.player]
-        server:sendToPeer(getPeer(client), "callSpecFunc", {specRef, data})
+        local owner_peer = GetPeerByCID(matchState.ClientIndex[unit.player])
+        server:sendToPeer(getPeer(owner_peer), "callSpecFunc", {specRef, data})
       end
     end
   end
@@ -184,142 +201,136 @@ end
 -- ! LOVE FUNCTIONS
 
 function love.load()
-  -- how often an update is sent out
+  -- server GUI
+  love.graphics.setFont(love.graphics.newFont(10))
+  love.window.setMode(1000,1000)
+
+  -- set up server
   tickRate = 1/120
   tick = 0
+  server = sock.newServer("*", 22122)
 
-  server = sock.newServer("*", 22122, 2, 10)
-
-  Players = {}
-
+  -- set up empty MatchStateIndex
   MatchStateIndex = {}
-  MatchState = {}
-  MatchState.DeadUnits = {}
+  -- set up CIDTranslator
+  CIDTranslator = {}
 
-  server:on("connect", function(data, client)
+  -- commands
+  server:on("connect", function(_, client)
     print('Connection received from client.')
-    -- Decide if the client is Player 1 or Player 2
-    -- Set "Ready" to true (starts the game)
-    local index
-    if Players[1] then
-      index = 2
-    else
-      index = 1
+    CIDTranslator[client.connectId] = client
+  end)
+
+  server:on("joinMatch", function(matchID, client)
+    -- first, we check if a match with that ID exists
+    if MatchStateIndex[matchID] and #(MatchStateIndex[matchID]['ClientIndex']) == 1 then
+      -- if it does, add self to ClientIndex as P2
+      MatchStateIndex[matchID]['ClientIndex'][2] = client.connectId
+      -- then tell to set up for game
+      server:sendToPeer(getPeer(client), "setUpGame", {2, matchID})
+
+
+    elseif not MatchStateIndex[matchID] then
+      -- if it doesn't, initialize starting values
+      MatchStateIndex[matchID] = {CurrentTurnTaker=1, TurnNumber=0, TimedEventQueue={}, TimedFuncQueue={}, UnitCount=0, DeadUnits={}, Phase='waiting'}
+      CreateMasterLanes(matchID)
+      -- then, add client as P1
+      MatchStateIndex[matchID]['ClientIndex'] = {}
+      MatchStateIndex[matchID]['ClientIndex'][1] = client.connectId
+
+      -- ! TESTING FORK: FAKE PLAYER
+      MatchStateIndex[1]['Player2'] = {ActionTable={1,0,1},AscendantIndex=2,HasIncarnatePower=true,HasMajorPower=true,HasMinorPower=true}
+
+      -- then tell to set up for game
+      server:sendToPeer(GetPeerByClient(client), "setUpGame", {1, matchID})
+
+    elseif #(MatchStateIndex[matchID]['ClientIndex']) == 2 then
+      print('Match is full!')
+      return false
     end
-    -- Tell client to what player it is, sets client Ready to true
-    Players[index] = client
-    server:sendToPeer(getPeer(client), "setUpGame", index)
+
+    end)
+
+  server:on("transferPreMatchData", function(data, client)
+    local matchID, preMatchData = unpack(data)
+    local pNum = GetPNumAndMatchID(client)
+
+    MatchStateIndex[matchID]['Player'..pNum] = preMatchData
   end)
 
-  server:on("transferPreMatchData", function(PreMatchData, client)
-    print('Receieved transferPreMatchData')
-    local pNum = getPlayer(client)
-    print(pNum, inspect(PreMatchData))
-    MatchState['Player'..pNum] = PreMatchData
-    -- ! TESTING FORK: FAKE PLAYER
-    Players[2] = true
-    MatchState['Player2'] = {ActionTable={1,0,1},AscendantIndex=2,HasIncarnatePower=true,HasMajorPower=true,HasMinorPower=true}
-  end)
-
-  -- used to keep track of how many unit there are
-  UnitCount = 0
-
-  -- ! MANAGING THE BOARD
-
-  -- create the master copy of the lanes
-  CreateMasterLanes()
-
-  -- ! TESTING FORK: FAKE UNITS
-  MasterLanes['r'][3].content = {
-    {uid='1', name='Siren', player=2, cost=1, attack=1, health=2, tile='r3', specTable={shortDesc=2, fullDesc=1, tags={} } },
-    {uid='2', name='2', player=2, cost=1, attack=1, health=2, tile='r3', specTable={shortDesc=2, fullDesc=1, tags={} } },
-    {uid='3', name='3', player=2, cost=1, attack=1, health=2, tile='r3', specTable={shortDesc=2, fullDesc=1, tags={} } }
-                                }
-
-  -- {uid=unitName..UnitCount,name=unitName,
-  -- player=getPlayer(client),cost=cst,attack=atk,
-  -- health=hp,tile=tileRef,specTable=special}
-
+  -- ! MANAGING THE BOARD ! --
 
   server:on("createUnitOnTile", function(data, client)
-
-    --used to create a unit from just a unit name, assigning it a UnitCount and its default stats
-
-    print('Received createUnitOnTile')
-    local unitName, tileRef = data[1], data[2]
-    print('Creating '..unitName..' on tile '..tileRef)
+    -- used to create a unit from just a unit name, assigning it a UnitCount and its default stats
+    local pNum, matchID = GetPNumAndMatchID(client)
 
     -- * tileRef is in form 'rA'
     -- * we need to convert it before setting the units stored reference
-    local spawnTile, newRef = tileRefToTile(tileRef, client)
-
-    UnitCount = UnitCount + 1
+    local unitName, tileRef = data[1], data[2]
+    local spawnTile, newRef = TileRefToTile(tileRef, client)
+    MatchStateIndex[matchID].UnitCount = MatchStateIndex[matchID].UnitCount + 1
 
     -- calculate the statistics of the unit by referencing unitList
     local unitRef = UnitList[unitName]
     local cst, atk, hp, cM, cA, cS, special = unitRef[1], unitRef[2], unitRef[3], unitRef.canMove, unitRef.canAttack, unitRef.canSpecial, unitRef.special
-    local unit = {uid=unitName..UnitCount,name=unitName,player=getPlayer(client),cost=cst,
+    local unit = {uid=unitName..MatchStateIndex[matchID].UnitCount,name=unitName,player=pNum,cost=cst,
                   attack=atk,health=hp,tile=newRef,canMove=cM,canAttack=cA,canSpecial=cS,
                   specTable=special}
     table.insert(spawnTile.content, unit)
 
     -- trigger a unitCreated event
-    server:sendToPeer(getPeer(client), "triggerEvent", {'unitCreated', unit } )
+    server:sendToPeer(GetPeerByClient(client), "triggerEvent", {'unitCreated', unit } )
 
     -- send out the updated board
-    server:sendToAll("updateLanes", MasterLanes)
+    SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
   end)
 
   server:on("addUnitToTile", function(data, client)
-    print('Received addUnitToTile')
     -- add the unit
     local unit, newRef = unpack(data)
     addUnitToTile(unit, newRef)
     -- update the board
-    server:sendToAll("updateLanes", MasterLanes)
+    local pNum, matchID = GetPNumAndMatchID(client)
+    SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
   end)
 
   server:on("removeUnitFromTile", function(data, client)
-    print('Received removeUnitFromTile')
     -- remove the unit
     local unit = data[1]
     local tileRef = (data[2] or unit.tile)
-    removeUnitFromTile(unit, tileRef)
+    RemoveUnitFromTile(unit, tileRef)
     -- update the board
-    server:sendToAll("updateLanes", MasterLanes)
+    local pNum, matchID = GetPNumAndMatchID(client)
+    SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
   end)
 
   function addUnitToTile(unit, tileRef)
     -- * used to add an already-existing unit table to a tile
-    local tile = tileRefToTile(tileRef)
+    local tile = TileRefToTile(tileRef)
     -- update the stored tileRef
     unit.tile = tileRef
     -- insert the unit
     table.insert(tile.content, unit)
   end
 
-  function removeUnitFromTile(unit, tileRef)
-    print('Server removeUnitFromTile')
+  function RemoveUnitFromTile(unit, tileRef)
     local tileRef = tileRef or unit.tile
-    local tile = tileRefToTile(tileRef)
-    local index = findUnitIndex(unit, tile)
+    local tile = TileRefToTile(tileRef)
+    local index = FindUnitIndex(unit, tile)
     table.remove(tile.content, index)
   end
-
-
 
   -- ! BASIC UNIT ACTIONS
 
   server:on("unitAttack", function(data, client)
     -- * used for one unit to attack another
-    print('Received unitAttack')
     -- define variables
     local attacker, defender, doNotCheckRange = unpack(data)
     local attackerTileRef, defenderTileRef = attacker.tile, defender.tile
     local newDefenderHP = defender.health - attacker.attack
-    local attTile = tileRefToTile(attackerTileRef, client)
-    local defTile = tileRefToTile(defenderTileRef, client)
-    local dIndex = findUnitIndex(defender, defTile)
+    local attTile = TileRefToTile(attackerTileRef, client)
+    local defTile = TileRefToTile(defenderTileRef, client)
+    local dIndex = FindUnitIndex(defender, defTile)
 
     -- hunter special
     -- ? do we really want to have this here?
@@ -329,50 +340,46 @@ function love.load()
     -- generic checking for doNotCheckRange
     if doNotCheckRange then goto skipRange end
     -- check range
-    if distanceBetweenTiles(attTile, defTile) ~= 0 then
-      -- if not, print an error here and send an alert over to client
-      print('Attack target was out of range')
+    if DistanceBetweenTiles(attTile, defTile) ~= 0 then
       server:sendToPeer(getPeer(client), "createAlert", {'Target out of range', 5})
       return false
     end
     ::skipRange::
 
     -- unit damaged by event
-    handleEvent("unitDamaged", {defender, attacker}, {'attack', defender, attacker})
+    HandleEvent(client, "unitDamaged", {defender, attacker}, {'attack', defender, attacker})
 
     if newDefenderHP <= 0 then
       -- * if the HP is zero or below, kill them
       -- remove the unit
-      removeUnitFromTile(defender)
+      RemoveUnitFromTile(defender)
       -- call the events
-      handleEvent("unitKill", {attacker}, {attacker})
-      handleEvent("unitDeath", {defender}, {defender})
+      HandleEvent(client, "unitKill", {attacker}, {attacker})
+      HandleEvent(client, "unitDeath", {defender}, {defender})
       local contentHardCopy = defTile.content
       for _, unit in pairs(contentHardCopy) do
-        print(unit.name)
         -- don't call this event for the actual unit dying
         if unit.uid ~= defender.uid then
-          handleEvent("unitDeathInTile", {unit}, {unit, defender, attacker})
+          HandleEvent(client, "unitDeathInTile", {unit}, {unit, defender, attacker})
         end
       end
     else
       -- * if the HP is above zero, change the HP stat
-      print(defender.uid.. ' now has '..newDefenderHP..' health')
       -- find the unit in place, set the new HP
       defTile.content[dIndex]['health'] = newDefenderHP
-      server:sendToPeer(getPeer(client), "createAlert",
+      server:sendToPeer(GetPeerByClient(client), "createAlert",
             {defender.name..' now has '..newDefenderHP..' HP', 5})
     end
     -- update the board
-    server:sendToAll("updateLanes", MasterLanes)
+    local pNum, matchID = GetPNumAndMatchID(client)
+    SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
   end)
 
   server:on("unitMove", function(data, client)
-    print('Received unitMove')
     local unit, oldTileRef, newTileRef, isBasicMove = data[1], data[2], data[3], data[4]
 
     -- first, we check unitMoveIn and unitMoveOut for all units in the old and new tile
-    local oldTile, newTile = tileRefToTile(oldTileRef), tileRefToTile(newTileRef)
+    local oldTile, newTile = TileRefToTile(oldTileRef), TileRefToTile(newTileRef)
     local outUnits = {}
 
     for _, oldUnit in pairs(oldTile.content) do
@@ -381,71 +388,82 @@ function love.load()
     end
 
     for _, newUnit in pairs(newTile.content) do
-      handleEvent("unitMoveIn", {newUnit}, {unit, oldTileRef, newTileRef, newUnit, isBasicMove})
+      HandleEvent(client, "unitMoveIn", {newUnit}, {unit, oldTileRef, newTileRef, newUnit, isBasicMove})
     end
 
-    handleEvent("unitMoveOut", outUnits, {unit, oldTileRef, newTileRef})
+    HandleEvent(client, "unitMoveOut", outUnits, {unit, oldTileRef, newTileRef})
 
     -- ! actual movement
     -- remove from old tile
-    removeUnitFromTile(unit, oldTileRef)
+    RemoveUnitFromTile(unit, oldTileRef)
     -- add to new tile
     addUnitToTile(unit, newTileRef)
 
 
     -- handle the unit movement event
-    handleEvent("unitMove", {unit}, {unit, oldTileRef, newTileRef, isBasicMove})
+    HandleEvent(client, "unitMove", {unit}, {unit, oldTileRef, newTileRef, isBasicMove})
     -- update the board
-    server:sendToAll("updateLanes", MasterLanes)
+    local pNum, matchID = GetPNumAndMatchID(client)
+    SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
   end)
 
   -- * server-side version of below
-  function modifyUnitTable(unit, field, newValue)
+  function ModifyUnitTable(client, unit, field, newValue)
     -- find the unit in place, set the new value
-    local tile = tileRefToTile(unit.tile)
-    local index = findUnitIndex(unit, tile)
+    local tile = TileRefToTile(unit.tile)
+    local index = FindUnitIndex(unit, tile)
     tile.content[index][field] = newValue
-    server:sendToAll("updateLanes", MasterLanes)
+
+    local pNum, matchID = GetPNumAndMatchID(client)
+    SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
   end
 
   -- * used to modify a field of a unit, e.g. health, atk, name, spectable
   server:on("modifyUnitTable", function(data, client)
-    print('Received modifyUnitTable')
+    local pNum, matchID = GetPNumAndMatchID(client)
     local unit, field, newValue = unpack(data)
     assert(unit, 'Unit missing in a client modifyUnitTable call.')
+
     -- find the unit in place, set the new value
-    local tile = tileRefToTile(unit.tile)
-    local index = findUnitIndex(unit, tile)
+    local tile = TileRefToTile(unit.tile)
+    local index = FindUnitIndex(unit, tile)
+
     -- first we check that the unit exists. if it doesn't and we try to change, it'll crash
     if not tile.content[index] then print('modifyunittable error') return false end
     tile.content[index][field] = newValue
+
     -- if health, we have to check for death
     if (field == 'health') and newValue <= 0 then
-      server:sendToAll("createAlert", {unit.name..' was killed.', 5})
-      removeUnitFromTile(unit, unit.tile)
+      SendToMatch(matchID, "createAlert", {unit.name..' was killed.', 5})
+      RemoveUnitFromTile(unit, unit.tile)
     end
-    server:sendToAll("updateLanes", MasterLanes)
+
+    SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
   end)
 
   -- * finds a unit by ID, then modifies that unit's table
   -- * useful when a unit may have moved in between the event call and this function
   server:on("modifyUnitTableByID", function(data, client)
-    print('Received modifyUnitTableByID')
+    local pNum, matchID = GetPNumAndMatchID(client)
     local UID, field, newValue = unpack(data)
     assert(UID, 'UID missing in a client modifyUnitTable call.')
+
     -- find the unit in place, set the new value
-    local unit = FindUnitByID(UID)
-    local tile = tileRefToTile(unit.tile)
-    local index = findUnitIndex(unit, tile)
+    local unit = FindUnitByID(client, UID)
+    local tile = TileRefToTile(unit.tile)
+    local index = FindUnitIndex(unit, tile)
+    
     -- first we check that the unit exists. if it doesn't and we try to change, it'll crash
     if not tile.content[index] then print('modifyunittable error') return false end
     tile.content[index][field] = newValue
+
     -- if health, we have to check for death
     if (field == 'health') and newValue <= 0 then
-      server:sendToAll("createAlert", {unit.name..' was killed.', 5})
-      removeUnitFromTile(unit, unit.tile)
+      SendToMatch(matchID, "createAlert", {unit.name..' was killed.', 5})
+      RemoveUnitFromTile(unit, unit.tile)
     end
-    server:sendToAll("updateLanes", MasterLanes)
+
+    SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
   end)
 
   -- * used to examine whether a given unit is a valid target for a certain set of conditions
@@ -457,9 +475,9 @@ function love.load()
 
     -- * before checking conditions, we check all neighbours
     -- then, we call the UnitTargetedInTile event on every unit in the target's tile
-    local tile = tileRefToTile(unit.tile)
+    local tile = TileRefToTile(unit.tile)
     for _, neighbour in pairs(tile.content) do
-      handleEvent("unitTargetedInTile", {neighbour}, {neighbour, unit, data2})
+      HandleEvent(client, "unitTargetedInTile", {neighbour}, {neighbour, unit, data2})
     end
 
     -- ! attack check
@@ -475,8 +493,8 @@ function love.load()
     -- ! vertical distance between
     if conditions.distanceBetweenIs ~= nil then
       local distance = conditions.distanceBetweenIs
-      local t1, t2 = tileRefToTile(unit.tile), tileRefToTile(origin.tile)
-      if distanceBetweenTiles(t1, t2) ~= distance then
+      local t1, t2 = TileRefToTile(unit.tile), TileRefToTile(origin.tile)
+      if DistanceBetweenTiles(t1, t2) ~= distance then
         server:sendToPeer(getPeer(client), "createAlert", {'Target out of range', 3})
         return false
       end
@@ -484,11 +502,11 @@ function love.load()
 
     -- ! horizontal distance between
     if conditions.horizontallyAdjacent ~= nil then
-      local t1, t2 = tileRefToTile(unit.tile), tileRefToTile(origin.tile)
+      local t1, t2 = TileRefToTile(unit.tile), TileRefToTile(origin.tile)
       -- check if in same tile
       if t1.t ~= t2.t then server:sendToPeer(getPeer(client), "createAlert", {'Not in adjacent tiles.', 3}) return false end
       -- check if in the same lane
-      if not adjacentLanes(t1.l, t2.l) then server:sendToPeer(getPeer(client), "createAlert", {'Not in adjacent tiles.', 3}) return false end
+      if not AdjacentLanes(t1.l, t2.l) then server:sendToPeer(getPeer(client), "createAlert", {'Not in adjacent tiles.', 3}) return false end
     end
 
     -- ! self-targeting
@@ -496,159 +514,161 @@ function love.load()
       if unit.uid == origin.uid then server:sendToPeer(getPeer(client), "createAlert", {'Cannot target self.', 3}) return false end
     end
 
-    
     -- if all is well, we echo back a unique target event
     server:sendToPeer(getPeer(client), "triggerEvent", {unit.uid..'TargetSucceed', {}})
-    
+
     -- before ending, we call the unitTargeted event
-    handleEvent("unitTargeted", {unit}, {unit, origin, data2})
+    HandleEvent(client, "unitTargeted", {unit}, {unit, origin, data2})
   end)
 
-  -- * same as above, but for tiles instead of units
-  server:on("tileTargetcheck", function(data, client) end)
-
   -- ! TURN SYSTEM & QUEUEING ACTIONS
-
-  CurrentTurnTaker = 1 -- what player number starts the game
-  MatchState.turnNumber = 0
-  TimedEventQueue = {}
-  TimedFuncQueue = {}
 
   server:on("useAction", function (data, client)
     local actionType, actionUser, reason = unpack(data)
     server:sendToPeer(getPeer(client), "actionUsed", actionType)
   end)
 
-  function advanceTurnTimer()
+  function AdvanceTurnTimer(matchID)
+    local matchState = MatchStateIndex[matchID]
     -- advance the turn number
-    MatchState.turnNumber = MatchState.turnNumber + 1
-    server:sendToAll("updateVar", {'global', 'turnNumber', MatchState.turnNumber})
-    print('Turn Number:', MatchState.turnNumber)
+    matchState.TurnNumber = matchState.TurnNumber + 1
+    SendToMatch(matchID, "updateVar", {'global', 'turnNumber', matchState.TurnNumber})
 
     -- check if there's anything in the EventQueue for this turn
-    if not TimedEventQueue[MatchState.turnNumber] then goto noEvents end
+    if not matchState.TimedEventQueue[matchState.TurnNumber] then goto noEvents end
     -- if there is, call those events
-    for _, eventsTable in pairs(TimedEventQueue[MatchState.turnNumber]) do
+    for _, eventsTable in pairs(matchState.TimedEventQueue[matchState.TurnNumber]) do
       local event, args = unpack(eventsTable)
-      server:sendToAll("triggerEvent", {event, args})
+      SendToMatch(matchID, "triggerEvent", {event, args})
     end
     ::noEvents::
 
     -- check if there's anything for the FuncQueue for this turn
-    if not TimedFuncQueue[MatchState.turnNumber] then return end
+    if not matchState.TimedFuncQueue[matchState.TurnNumber] then return end
     -- if there is, call those funcs
-    for _, funcTable in pairs(TimedFuncQueue[MatchState.turnNumber]) do
+    for _, funcTable in pairs(matchState.TimedFuncQueue[matchState.TurnNumber]) do
       local func, args = unpack(funcTable)
       func(unpack(args))
     end
   end
 
   -- * server-side version of below. triggers a server function instead of an event
-  function queueTimedFunc(func, turnsFromNow, args)
-    local triggerTurn = MatchState.turnNumber + turnsFromNow
-    if TimedFuncQueue[triggerTurn] then
+  function QueueTimedFunc(client, func, turnsFromNow, args)
+    local pNum, matchID = GetPNumAndMatchID(client)
+    local matchState = MatchStateIndex[matchID]
+
+    local triggerTurn = matchState.TurnNumber + turnsFromNow
+    if matchState.TimedFuncQueue[triggerTurn] then
       -- if there's already an func(s) queued for that turn, add to that table
-      table.insert(TimedFuncQueue[triggerTurn], {func, args})
-    elseif not TimedFuncQueue[triggerTurn] then
+      table.insert(matchState.TimedFuncQueue[triggerTurn], {func, args})
+    elseif not matchState.TimedFuncQueue[triggerTurn] then
       -- if no funcs are queued, create a new table entirely
-      TimedFuncQueue[triggerTurn] = {{func, args}}
+      matchState.TimedFuncQueue[triggerTurn] = {{func, args}}
     end
   end
 
   -- * causes the server to trigger a client Event some turns from now
   server:on("queueTimedEvent", function(data, client)
-    print('Received queueTimedEvent')
+    local pNum, matchID = GetPNumAndMatchID(client)
+    local matchState = MatchStateIndex[matchID]
     local event, turnsFromNow, args = unpack(data)
-    local triggerTurn = MatchState.turnNumber + turnsFromNow
-    if TimedEventQueue[triggerTurn] then
+    local triggerTurn = matchState.turnNumber + turnsFromNow
+
+    if matchState.TimedEventQueue[triggerTurn] then
       -- if there's already an event(s) queued for that turn, add to that table
-      table.insert(TimedEventQueue[triggerTurn], {event, args})
-    elseif not TimedEventQueue[triggerTurn] then
+      table.insert(matchState.TimedEventQueue[triggerTurn], {event, args})
+    elseif not matchState.TimedEventQueue[triggerTurn] then
       -- if no events are queued, create a new table entirely
-      TimedEventQueue[triggerTurn] = {{event, args}}
+      matchState.TimedEventQueue[triggerTurn] = {{event, args}}
     end
   end)
 
   -- * the signal that the client has completed their turn
   -- * also manages victory/defeat checks
-  server:on("endMyTurn", function(data, client)
-    print('Received endMyTurn')
+  server:on("endMyTurn", function(_, client)
+    local _, matchID = GetPNumAndMatchID(client)
+    local matchState = MatchStateIndex[matchID]
+
     -- check if victory condition is achieved
-    for player,_ in pairs(Players) do
-      local ascIndex = MatchState['Player'..player]['AscendantIndex']
+    for pNum, _ in pairs(MatchStateIndex[matchID].ClientIndex) do
+      local ascIndex = MatchStateIndex[matchID]['Player'..pNum]['AscendantIndex']
       local asc = AscendantVictories[ascIndex]
-      if asc.victoryFunc(player) then
-        local winner = getPeer(Players[player])
+      if asc.victoryFunc(pNum, MatchStateIndex[matchID]) then
+        local winnerCID = matchState.ClientIndex[pNum]
+        local winnerPeer = GetPeerByCID(winnerCID)
         local loser
-        for _, player in pairs(Players) do
-          if player ~= winner then
+        for _, playerCID in pairs(matchState.ClientIndex) do
+          if playerCID ~= winnerCID then
             -- ! TESTING FORK: NO LOSER (IF FAKE PLAYER)
+            print('TESTING FORK: No message to loser')
             -- ! loser = getPeer(Players[player])
-            print('jsyk youre using the testing fork')
           end
         end
-        server:sendToPeer(winner, "youWin", {})
-        -- ! TESTING FORK: NO LOSER (FAKE PLAYER) 
+        server:sendToPeer(winnerPeer, "youWin", {})
+        -- ! TESTING FORK: NO LOSER (FAKE PLAYER)
+        print('TESTING FORK: No message to loser.')
         -- ! server:sendToPeer(loser, "youLose", {})
       end
     end
     -- increment the turn timer and activate any queued events
-    advanceTurnTimer(client)
+    AdvanceTurnTimer(matchID)
     -- the second argument is the player ID (numbers for now)
     local newTurnTaker
     if client:getIndex() == 1 then newTurnTaker = 2
     elseif client:getIndex() == 2 then newTurnTaker = 1 end
-    CurrentTurnTaker = newTurnTaker
-    print('It is now '..newTurnTaker.."'s turn.")
+    MatchStateIndex[matchID].CurrentTurnTaker = newTurnTaker
     -- ! TESTING FORK - ONE PLAYER TURN CONTROLS
-    -- server:sendToAll("setPlayerTurn", 1)
-    server:sendToAll("setPlayerTurn", newTurnTaker)
+    -- SendToMatch(matchID, "setPlayerTurn", 1)
+    SendToMatch(matchID, "setPlayerTurn", newTurnTaker)
   end)
- 
+
   -- ! COMMUNICATE WITH CLIENT
 
   server:on("updatePlayerVar", function(data, client)
-    print('Received updatePlayerVar')
     local field, value = unpack(data)
-    local player = getPlayer(client)
-    local PlayerState = MatchState['Player'..player]
+    local pNum, matchID = GetPNumAndMatchID(client)
+    local PlayerState = MatchStateIndex[pNum]['Player'..pNum]
     PlayerState[field] = value
     end)
 
   server:on("sleeperMajor3", function(sleeperLane, client)
-    print('Received sleeperMajor3')
-    for laneKey, lane in pairs(MasterLanes) do
+    local _, matchID = GetPNumAndMatchID(client)
+    local matchState = MatchStateIndex[matchID]
+
+
+    for laneKey, lane in pairs(matchState.MasterLanes) do
       if sleeperLane ~= laneKey then
         for _, tile in pairs(lane) do
           for _, unit in pairs(tile.content) do
-            handleEvent("unitDeath", {unit}, {unit})
+            HandleEvent(client, "unitDeath", {unit}, {unit})
           end
         end
-        MasterLanes[laneKey] = nil
+        matchState.MasterLanes[laneKey] = nil
       end
     end
-    server:sendToAll("updateLanes", MasterLanes)
+
+    SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
   end)
 
 end
 
 function love.update(dt)
 
-  if MatchState['Player1'] and MatchState['Player2'] and not MatchStarted then
-    server:sendToAll("startMatch", MatchState)
-    MatchStarted = true
-    advanceTurnTimer()
+  for matchID, matchState in pairs(MatchStateIndex) do
+    if matchState['Player1'] and matchState['Player2'] and matchState['Phase'] == 'waiting' then
+      SendToMatch(matchID, "startMatch", matchState)
+      matchState.Phase = 'inProgress'
+      AdvanceTurnTimer(matchID)
+    end
   end
 
   server:update()
 end
 
 function love.draw()
-  love.graphics.print('Server running...',10,20)
-  if MatchState['Player1'] then
-    love.graphics.print(inspect(MatchState['Player1']), 100, 100)
-  end
-  if MatchState['Player2'] then
-    love.graphics.print(inspect(MatchState['Player2']), 300, 100)
+  love.graphics.setBackgroundColor(1,1,1)
+  love.graphics.setColor(0,0,0)
+  if MatchStateIndex then
+    love.graphics.print(inspect(MatchStateIndex), 0, 0)
   end
 end
