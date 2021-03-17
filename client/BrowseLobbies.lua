@@ -8,14 +8,13 @@ function BrowseLobbies.setUpLobbyClient()
   -- ! client functions
   client:on("connect", function(data)
     print('Successfully connected to server!')
-    ConnectedToBrowseLobbies = true
   end)
 
   client:on("updateActiveLobbies", function(data)
     ActiveLobbies = data
   end)
 
-  client:on("linkToEnemy", function(enemyID)
+  client:on("enterLobby", function(enemyID)
     -- bonds the two clients together
     -- also ships out to the game screen
     client.enemyID = enemyID
@@ -49,7 +48,6 @@ function BrowseLobbies.load()
 
 end
 
-
 function BrowseLobbies.update(dt)
 
   suit.layout:reset(centerX-75, 100)
@@ -61,25 +59,24 @@ function BrowseLobbies.update(dt)
   BGSuit.layout:padding(3)
   for k, lobby in pairs(ActiveLobbies) do
 
+      local bgButton = BGSuit:Button('', {id='lobby'..k}, BGSuit.layout:row(690, 40))
+      if bgButton.hit then
+        client:send("joinLobby", lobby)
+      end
 
-    local bgButton = BGSuit:Button('', {id='lobby'..k}, BGSuit.layout:row(690, 40))
-    if bgButton.hit then
-      client:send("joinLobby", lobby)
-    end
+      local x, y = bgButton.x, bgButton.y
 
-    local x, y = bgButton.x, bgButton.y
+      suit.layout:reset(x+7, y+4)
+      local avatarImage = AvatarReference[lobby.hostAvatarStr]
+      local avatar = suit.ImageButton(avatarImage, suit.layout:col(32,32))
 
-    suit.layout:reset(x+7, y+4)
-    local avatarImage = AvatarReference[lobby.hostAvatarStr]
-    local avatar = suit.ImageButton(avatarImage, suit.layout:col(32,32))
+      suit.layout:reset(x+45, y+10)
+      local username = suit.Label(lobby.hostCID, suit.layout:col(100,20))
+      local privacy = suit.Label(lobby.privacy, suit.layout:col(100,20))
 
-    suit.layout:reset(x+45, y+10)
-    local username = suit.Label(lobby.hostName, suit.layout:col(100,20))
-    local privacy = suit.Label(lobby.privacy, suit.layout:col(100,20))
-
-    suit.layout:reset(centerX+245, y+10)
-    local timeSinceCreation = suit.Label(lobby.timeSince, suit.layout:col(100,20))
-    local gameType = suit.Label(lobby.gameType, suit.layout:left(100,20))
+      suit.layout:reset(centerX+245, y+10)
+      local lobbyID = suit.Label(lobby.ID, suit.layout:col(100,20))
+      local gameType = suit.Label(lobby.gameType, suit.layout:left(100,20))
 
   end
 
@@ -88,13 +85,12 @@ function BrowseLobbies.update(dt)
   local hostButton = suit.Button('Host Lobby', suit.layout:row(125,25))
   if hostButton.hit and not (client.hasLobbyOpen) then
     -- send a lobby table to the server to be created
-    client:send("createLobby", {hostAvatarStr='TestAvatar', hostName=client.connectId,
-                                privacy='Open', timeSince='<1h', gameType='Standard',
+    client:send("createLobby", {hostAvatarStr='TestAvatar', hostCID=client.connectId,
+                                privacy='Open', gameType='Standard',
                                 ID=nil})
     client.hasLobbyOpen = true
   end
 
-  -- TODO: probably unsustainable to update every tick. refresh button?
   client:send("requestActiveLobbies")
   client:update()
 

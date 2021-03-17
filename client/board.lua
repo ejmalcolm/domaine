@@ -1,6 +1,6 @@
 local board = {}
 
-function isMyTurn()
+function IsMyTurn()
   return CurrentTurnTaker == playerNumber
 end
 
@@ -202,9 +202,9 @@ function board.update(dt)
           CPanelSuit.layout:reset(tile.rect[1]+5+(84*(alliesInTile-1)), tile.rect[2]+69)
           CPanelSuit.layout:reset(unitButton.x-20, unitButton.y)
           -- * we only create the parts of the panel that can be used
-          
+
           -- ! UNIT QUICK CONTROLS
-          if isMyTurn() and (ActiveUnit.player == playerNumber) and (love.keyboard.isDown('lctrl')) then
+          if IsMyTurn() and (ActiveUnit.player == playerNumber) and (love.keyboard.isDown('lctrl')) then
 
 
             -- -- ! MOVE BUTTONS
@@ -288,8 +288,8 @@ function board.update(dt)
             --     end
             --   end
             -- end
-          end 
-        
+          end
+
         end
 
         -- ! INFOPANEL
@@ -331,7 +331,7 @@ function board.update(dt)
 
   -- * press orb to end turn
 
-  if isMyTurn() then
+  if IsMyTurn() then
     if turnButton.hit then client:send("endMyTurn", {}) end
   end
 
@@ -377,12 +377,14 @@ function board.update(dt)
     InfoPanelSuit.layout:reset(18, 168)
     InfoPanelSuit:Label(ActiveUnit.name, InfoPanelSuit.layout:row(100,20))
 
-    if ActiveUnit.player == playerNumber and isMyTurn() then
+    if ActiveUnit.player == playerNumber and IsMyTurn() then
 
 
       if GetActionAmount('move') == 0 then goto skipMoves end
-      if not ActiveUnit.canMove then goto skipMoves end
-      -- MOVE UP
+      if ActiveUnit then
+        if not ActiveUnit.canMove then goto skipMoves end
+      end
+        -- MOVE UP
       CBarOrbsSuit.layout:reset(45, 223)
       if tileKey ~= 1 then
         local UpOrbButton = CBarOrbsSuit:ImageButton(MoveUpOrb, CBarOrbsSuit.layout:row(46, 39))
@@ -412,14 +414,15 @@ function board.update(dt)
           -- then, send the move message to the server
           client:send("unitMove", {ActiveUnit, tileRef, newTileRef, true})
           ActiveUnit = nil
-          -- TODO: action
         end
       end
       ::skipDown::
       ::skipMoves::
 
       if GetActionAmount('attack') == 0 then goto skipAttack end
-      if not ActiveUnit.canAttack then goto skipAttack end
+      if ActiveUnit then -- safeguard in case ActiveUnit gets cleared mid-thing
+        if not ActiveUnit.canAttack then goto skipAttack end
+      end
       -- ATTACK
       do
         CBarOrbsSuit.layout:reset(45, 339)
@@ -445,7 +448,9 @@ function board.update(dt)
       ::skipAttack::
 
       if GetActionAmount('special') == 0 then goto skipSpecial end
-      if not ActiveUnit.canSpecial then goto skipSpecial end
+      if ActiveUnit then
+        if not ActiveUnit.canSpecial then goto skipSpecial end
+      end
       -- SPECIAL
       do
         CBarOrbsSuit.layout:reset(45, 396)
@@ -492,7 +497,7 @@ function board.update(dt)
   end -- end of control panel buttons
 
   -- ! ASCENDANT ACTIONS
-  if isMyTurn() then
+  if IsMyTurn() then
     APanelSuit.layout:reset(433, 683)
 
     -- major action
@@ -550,7 +555,7 @@ function board.update(dt)
 
   -- * check if out of actions (end turn)
   -- only check if it's your turn to begin with
-  if isMyTurn() then
+  if IsMyTurn() then
     -- if (ActionsRemaining.primary == 0) and (ActionsRemaining.secondary == 0) then
     --   print('Player out of actions')
     --   client:send("endMyTurn", {})

@@ -10,10 +10,10 @@ AscendantVictories[1] = {
   victoryFunc=sacramentVictory
 }
 
-local function imperatorVictory(player)
+local function imperatorVictory(pNum, matchState)
   -- count how many Outposts there are
   local outpostCount = 0
-  for _, lane in pairs(MasterLanes) do
+  for _, lane in pairs(matchState.MasterLanes) do
     for _, tile in pairs(lane) do
       local hasOutpost = false
         for _, unit in pairs(tile.content) do
@@ -31,12 +31,12 @@ AscendantVictories[2] = {
   victoryFunc=imperatorVictory
 }
 
-local function parallelVictory(player)
+local function parallelVictory(pNum, matchState)
   local allSameATK = true
   local allSameHP = true
   local ATKcheck, HPcheck
 
-  for _, lane in pairs(MasterLanes) do
+  for _, lane in pairs(matchState.MasterLanes) do
     for _, tile in pairs(lane) do
       for _, unit in pairs(tile.content) do
         if not ATKcheck then ATKcheck = unit.attack end
@@ -57,8 +57,8 @@ AscendantVictories[3] = {
   victoryFunc=parallelVictory
 }
 
-local function sleeperVictory(player)
-  local sleeperState = (MatchState['Player'..player])['SleeperState']
+local function sleeperVictory(pNum, matchState)
+  local sleeperState = (matchState['Player'..pNum])['SleeperState']
 
   local function isMad(unit)
     local specTable = unit.specTable
@@ -74,8 +74,8 @@ local function sleeperVictory(player)
   if sleeperState == 3 then
 
     local onlyUnit = true
-    local sleeperUID = (MatchState['Player'..player])['AscendantUID']
-    for _, lane in pairs(MasterLanes) do
+    local sleeperUID = (matchState['Player'..pNum])['AscendantUID']
+    for _, lane in pairs(matchState.MasterLanes) do
       for _, tile in pairs(lane) do
         for _, unit in pairs(tile.content) do
           if not isMad(unit) then

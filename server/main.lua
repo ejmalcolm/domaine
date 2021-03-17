@@ -68,10 +68,10 @@ function GetPeerByClient(client)
   return server:getPeerByIndex(client:getIndex())
 end
 
-function TileRefToTile(tileRef, client)
+function TileRefToTile(client, tileRef)
   -- translates a tileRef (rA or r1) to an actual tile (MasterLanes.r[1])
 
-  local pNum, matchID = GetPNumAndMatchID(client)
+  local _, matchID = GetPNumAndMatchID(client)
   local masterLanes = MatchStateIndex[matchID].MasterLanes
   local clientIndex = MatchStateIndex[matchID].ClientIndex
 
@@ -214,21 +214,54 @@ function love.load()
   MatchStateIndex = {}
   -- set up CIDTranslator
   CIDTranslator = {}
-
-  -- commands
+  
   server:on("connect", function(_, client)
-    print('Connection received from client.')
+    print('Connection received from client with ID:', client.connectId)
     CIDTranslator[client.connectId] = client
   end)
 
+  -- define everything related to running the lobby system
+  DefineLobbyFunctions()
+
+  -- define everything related to running a match
+  DefineMatchFunctions()
+
+
+end
+
+function DefineLobbyFunctions()
+
+  ActiveLobbies = {}
+
+  server:on("createLobby", function(lobbyData, client)
+    lobbyData.ID = #ActiveLobbies+1
+    table.insert(ActiveLobbies, lobbyData)
+  end)
+
+  server:on("joinLobby", function(lobby, client)
+    local host = CIDTranslator[lobby.hostCID]
+    local hostPeer, clientPeer = GetPeerByClient(host), GetPeerByClient(client)
+    server:sendToPeer(hostPeer, "linkToEnemy", client.connectId)
+    server:sendToPeer(clientPeer, "linkToEnemy", host.connectId)
+  end)
+
+  server:on("requestActiveLobbies", function(_, client)
+    local peer = GetPeerByClient(client)
+    server:sendToPeer(peer, "updateActiveLobbies", ActiveLobbies)
+  end)
+
+end
+
+function DefineMatchFunctions()
+
   server:on("joinMatch", function(matchID, client)
+
     -- first, we check if a match with that ID exists
     if MatchStateIndex[matchID] and #(MatchStateIndex[matchID]['ClientIndex']) == 1 then
       -- if it does, add self to ClientIndex as P2
       MatchStateIndex[matchID]['ClientIndex'][2] = client.connectId
       -- then tell to set up for game
       server:sendToPeer(getPeer(client), "setUpGame", {2, matchID})
-
 
     elseif not MatchStateIndex[matchID] then
       -- if it doesn't, initialize starting values
@@ -237,10 +270,8 @@ function love.load()
       -- then, add client as P1
       MatchStateIndex[matchID]['ClientIndex'] = {}
       MatchStateIndex[matchID]['ClientIndex'][1] = client.connectId
-
       -- ! TESTING FORK: FAKE PLAYER
       MatchStateIndex[1]['Player2'] = {ActionTable={1,0,1},AscendantIndex=2,HasIncarnatePower=true,HasMajorPower=true,HasMinorPower=true}
-
       -- then tell to set up for game
       server:sendToPeer(GetPeerByClient(client), "setUpGame", {1, matchID})
 
@@ -267,7 +298,7 @@ function love.load()
     -- * tileRef is in form 'rA'
     -- * we need to convert it before setting the units stored reference
     local unitName, tileRef = data[1], data[2]
-    local spawnTile, newRef = TileRefToTile(tileRef, client)
+    local spawnTile, newRef = TileRefToTile(client, tileRef)
     MatchStateIndex[matchID].UnitCount = MatchStateIndex[matchID].UnitCount + 1
 
     -- calculate the statistics of the unit by referencing unitList
@@ -288,7 +319,7 @@ function love.load()
   server:on("addUnitToTile", function(data, client)
     -- add the unit
     local unit, newRef = unpack(data)
-    addUnitToTile(unit, newRef)
+    AddUnitToTile(client, unit, newRef)
     -- update the board
     local pNum, matchID = GetPNumAndMatchID(client)
     SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
@@ -298,29 +329,29 @@ function love.load()
     -- remove the unit
     local unit = data[1]
     local tileRef = (data[2] or unit.tile)
-    RemoveUnitFromTile(unit, tileRef)
+    RemoveUnitFromTile(client, unit, tileRef)
     -- update the board
     local pNum, matchID = GetPNumAndMatchID(client)
     SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
   end)
 
-  function addUnitToTile(unit, tileRef)
+  function AddUnitToTile(client, unit, tileRef)
     -- * used to add an already-existing unit table to a tile
-    local tile = TileRefToTile(tileRef)
+    local tile = TileRefToTile(client, tileRef)
     -- update the stored tileRef
     unit.tile = tileRef
     -- insert the unit
     table.insert(tile.content, unit)
   end
 
-  function RemoveUnitFromTile(unit, tileRef)
+  function RemoveUnitFromTile(client, unit, tileRef)
     local tileRef = tileRef or unit.tile
-    local tile = TileRefToTile(tileRef)
+    local tile = TileRefToTile(client, tileRef)
     local index = FindUnitIndex(unit, tile)
     table.remove(tile.content, index)
   end
 
-  -- ! BASIC UNIT ACTIONS
+  -- ! BASIC UNIT ACTIONS ! --
 
   server:on("unitAttack", function(data, client)
     -- * used for one unit to attack another
@@ -328,8 +359,8 @@ function love.load()
     local attacker, defender, doNotCheckRange = unpack(data)
     local attackerTileRef, defenderTileRef = attacker.tile, defender.tile
     local newDefenderHP = defender.health - attacker.attack
-    local attTile = TileRefToTile(attackerTileRef, client)
-    local defTile = TileRefToTile(defenderTileRef, client)
+    local attTile = TileRefToTile(client, attackerTileRef)
+    local defTile = TileRefToTile(client, defenderTileRef)
     local dIndex = FindUnitIndex(defender, defTile)
 
     -- hunter special
@@ -352,7 +383,7 @@ function love.load()
     if newDefenderHP <= 0 then
       -- * if the HP is zero or below, kill them
       -- remove the unit
-      RemoveUnitFromTile(defender)
+      RemoveUnitFromTile(client, defender)
       -- call the events
       HandleEvent(client, "unitKill", {attacker}, {attacker})
       HandleEvent(client, "unitDeath", {defender}, {defender})
@@ -379,7 +410,7 @@ function love.load()
     local unit, oldTileRef, newTileRef, isBasicMove = data[1], data[2], data[3], data[4]
 
     -- first, we check unitMoveIn and unitMoveOut for all units in the old and new tile
-    local oldTile, newTile = TileRefToTile(oldTileRef), TileRefToTile(newTileRef)
+    local oldTile, newTile = TileRefToTile(client, oldTileRef), TileRefToTile(client, newTileRef)
     local outUnits = {}
 
     for _, oldUnit in pairs(oldTile.content) do
@@ -395,9 +426,9 @@ function love.load()
 
     -- ! actual movement
     -- remove from old tile
-    RemoveUnitFromTile(unit, oldTileRef)
+    RemoveUnitFromTile(client, unit, oldTileRef)
     -- add to new tile
-    addUnitToTile(unit, newTileRef)
+    AddUnitToTile(client, unit, newTileRef)
 
 
     -- handle the unit movement event
@@ -410,7 +441,7 @@ function love.load()
   -- * server-side version of below
   function ModifyUnitTable(client, unit, field, newValue)
     -- find the unit in place, set the new value
-    local tile = TileRefToTile(unit.tile)
+    local tile = TileRefToTile(client, unit.tile)
     local index = FindUnitIndex(unit, tile)
     tile.content[index][field] = newValue
 
@@ -425,7 +456,7 @@ function love.load()
     assert(unit, 'Unit missing in a client modifyUnitTable call.')
 
     -- find the unit in place, set the new value
-    local tile = TileRefToTile(unit.tile)
+    local tile = TileRefToTile(client, unit.tile)
     local index = FindUnitIndex(unit, tile)
 
     -- first we check that the unit exists. if it doesn't and we try to change, it'll crash
@@ -435,7 +466,7 @@ function love.load()
     -- if health, we have to check for death
     if (field == 'health') and newValue <= 0 then
       SendToMatch(matchID, "createAlert", {unit.name..' was killed.', 5})
-      RemoveUnitFromTile(unit, unit.tile)
+      RemoveUnitFromTile(client, unit, unit.tile)
     end
 
     SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
@@ -450,7 +481,7 @@ function love.load()
 
     -- find the unit in place, set the new value
     local unit = FindUnitByID(client, UID)
-    local tile = TileRefToTile(unit.tile)
+    local tile = TileRefToTile(client, unit.tile)
     local index = FindUnitIndex(unit, tile)
     
     -- first we check that the unit exists. if it doesn't and we try to change, it'll crash
@@ -460,7 +491,7 @@ function love.load()
     -- if health, we have to check for death
     if (field == 'health') and newValue <= 0 then
       SendToMatch(matchID, "createAlert", {unit.name..' was killed.', 5})
-      RemoveUnitFromTile(unit, unit.tile)
+      RemoveUnitFromTile(client, unit, unit.tile)
     end
 
     SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
@@ -475,7 +506,7 @@ function love.load()
 
     -- * before checking conditions, we check all neighbours
     -- then, we call the UnitTargetedInTile event on every unit in the target's tile
-    local tile = TileRefToTile(unit.tile)
+    local tile = TileRefToTile(client, unit.tile)
     for _, neighbour in pairs(tile.content) do
       HandleEvent(client, "unitTargetedInTile", {neighbour}, {neighbour, unit, data2})
     end
@@ -493,7 +524,7 @@ function love.load()
     -- ! vertical distance between
     if conditions.distanceBetweenIs ~= nil then
       local distance = conditions.distanceBetweenIs
-      local t1, t2 = TileRefToTile(unit.tile), TileRefToTile(origin.tile)
+      local t1, t2 = TileRefToTile(client, unit.tile), TileRefToTile(client, origin.tile)
       if DistanceBetweenTiles(t1, t2) ~= distance then
         server:sendToPeer(getPeer(client), "createAlert", {'Target out of range', 3})
         return false
@@ -502,7 +533,7 @@ function love.load()
 
     -- ! horizontal distance between
     if conditions.horizontallyAdjacent ~= nil then
-      local t1, t2 = TileRefToTile(unit.tile), TileRefToTile(origin.tile)
+      local t1, t2 = TileRefToTile(client, unit.tile), TileRefToTile(client, origin.tile)
       -- check if in same tile
       if t1.t ~= t2.t then server:sendToPeer(getPeer(client), "createAlert", {'Not in adjacent tiles.', 3}) return false end
       -- check if in the same lane
@@ -521,7 +552,7 @@ function love.load()
     HandleEvent(client, "unitTargeted", {unit}, {unit, origin, data2})
   end)
 
-  -- ! TURN SYSTEM & QUEUEING ACTIONS
+  -- ! ACTIONS, TURN SYSTEM & QUEUEING EVENTS ! --
 
   server:on("useAction", function (data, client)
     local actionType, actionUser, reason = unpack(data)
@@ -572,7 +603,7 @@ function love.load()
     local pNum, matchID = GetPNumAndMatchID(client)
     local matchState = MatchStateIndex[matchID]
     local event, turnsFromNow, args = unpack(data)
-    local triggerTurn = matchState.turnNumber + turnsFromNow
+    local triggerTurn = matchState.TurnNumber + turnsFromNow
 
     if matchState.TimedEventQueue[triggerTurn] then
       -- if there's already an event(s) queued for that turn, add to that table
@@ -622,7 +653,7 @@ function love.load()
     SendToMatch(matchID, "setPlayerTurn", newTurnTaker)
   end)
 
-  -- ! COMMUNICATE WITH CLIENT
+  -- ! MATCHSTATE EDITING ! --
 
   server:on("updatePlayerVar", function(data, client)
     local field, value = unpack(data)
@@ -630,6 +661,8 @@ function love.load()
     local PlayerState = MatchStateIndex[pNum]['Player'..pNum]
     PlayerState[field] = value
     end)
+
+  -- ! OTHER ! --
 
   server:on("sleeperMajor3", function(sleeperLane, client)
     local _, matchID = GetPNumAndMatchID(client)

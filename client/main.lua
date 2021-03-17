@@ -419,7 +419,6 @@ function ChangePlayerVar(field, value)
   client:send("updatePlayerVar", {field, value})
 end
 
-
 -- ! LOVE loops and game events
 
 function love.load()
@@ -462,7 +461,6 @@ function love.load()
   currentScreen = menu
 end
 
-
 function love.update(dt)
   -- * quit the game with escape!
   if love.keyboard.isDown('escape') then love.event.quit() end
@@ -498,7 +496,6 @@ function love.update(dt)
   -- update the current screen
   currentScreen.update(dt)
 end
-
 
 function love.draw()
 
