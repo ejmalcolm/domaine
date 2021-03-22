@@ -14,15 +14,22 @@ function BrowseLobbies.setUpLobbyClient()
     ActiveLobbies = data
   end)
 
-  client:on("enterLobby", function(enemyID)
-    -- bonds the two clients together
-    -- also ships out to the game screen
-    client.enemyID = enemyID
+  client:on("joinLobby", function(lobby)
+    -- stores what lobby you're in and resets PreMatchData
+    PreMatchData = {}
+    InsideLobby = lobby
+    -- moves client to LobbyWait
+    changeScreen(LobbyWait)
+  end)
+
+  client:on("updateInsideLobby", function(newLobbyData)
+    InsideLobby = newLobbyData
   end)
 
   -- ! connection
   local function dummyConnect()
     client:connect()
+    Connected = true
   end
   -- if connection works (pcall stops any errors from crashing)
   if pcall(dummyConnect) then print('Connecting...') else print('Connection failed') end
@@ -38,9 +45,10 @@ function BrowseLobbies.load()
 
   -- a list of the lobbies currently being hosted
   ActiveLobbies = {}
+  -- marks whether or not this client is part of a lobby
+  -- if they are, this is set equal to the lobby
+  InsideLobby = false
 
-  -- a list of all server channels currently being used (games in progress)
-  ActiveServerChannels = {0}
 
   -- create a client instance
   SERVER_IP = 'localhost'
@@ -61,7 +69,7 @@ function BrowseLobbies.update(dt)
 
       local bgButton = BGSuit:Button('', {id='lobby'..k}, BGSuit.layout:row(690, 40))
       if bgButton.hit then
-        client:send("joinLobby", lobby)
+        client:send("joinLobby", lobby.ID)
       end
 
       local x, y = bgButton.x, bgButton.y
@@ -75,7 +83,8 @@ function BrowseLobbies.update(dt)
       local privacy = suit.Label(lobby.privacy, suit.layout:col(100,20))
 
       suit.layout:reset(centerX+245, y+10)
-      local lobbyID = suit.Label(lobby.ID, suit.layout:col(100,20))
+      local membersLabel = tostring(#lobby.members)..'/2'
+      local members = suit.Label(membersLabel, suit.layout:col(100,20))
       local gameType = suit.Label(lobby.gameType, suit.layout:left(100,20))
 
   end
@@ -83,16 +92,15 @@ function BrowseLobbies.update(dt)
   -- create "host lobby" button
   suit.layout:reset(centerX+225, centerY+175)
   local hostButton = suit.Button('Host Lobby', suit.layout:row(125,25))
-  if hostButton.hit and not (client.hasLobbyOpen) then
+  if hostButton.hit and not InsideLobby then
     -- send a lobby table to the server to be created
-    client:send("createLobby", {hostAvatarStr='TestAvatar', hostCID=client.connectId,
+    client:send("hostLobby", {hostAvatarStr='TestAvatar', hostCID=client.connectId,
                                 privacy='Open', gameType='Standard',
+                                members={}, hostPreMatch={}, guestPreMatch={},
                                 ID=nil})
-    client.hasLobbyOpen = true
   end
 
   client:send("requestActiveLobbies")
-  client:update()
 
 end
 

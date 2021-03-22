@@ -8,7 +8,11 @@ chooseAscendant = require("chooseAscendant")
 victoryScreen = require("victoryScreen")
 defeatScreen = require("defeatScreen")
 WaitingScreen = require("WaitingScreen")
+
 BrowseLobbies = require("BrowseLobbies")
+LobbyWait = require("LobbyWait")
+LMPChooseAscendant = require("LMPChooseAscendant")
+LMPBuildArmy = require("LMPBuildArmy")
 
 -- * references
 unitList = require("references/unitList")
@@ -424,30 +428,38 @@ end
 function love.load()
   -- used as a queueing system for WaitFor() events
   WaitingFor = {}
+
   -- used to draw temporary alerts
   AlertSuit = suit.new()
   ActiveAlerts = {}
+
   -- used for popup menus
   PopUpBG = love.graphics.newImage('images/PopUpBG.png')
   PopupSuit = suit.new()
   PopupMenus = {}
+
   -- used for infopanels
+
   PopupDisplaySuit = suit.new()
   PopupDisplays = {}
+
   -- used for Slider popups
   SliderPopupSuit = suit.new()
   SliderPopups = {}
+
   -- basic settings
   love.keyboard.setKeyRepeat(true)
   love.window.setTitle('Domaine')
   love.window.setMode(1280, 720, {resizable=false})
+
   -- audio assets (expensive to create many times)
   AudioSources = {}
   AudioSources["alertSound"] = love.audio.newSource('sounds/alertSoundDown.wav', 'static')
   AudioSources["alertSound"]:setVolume(.25)
   AudioSources["walkingAlong"] = love.audio.newSource('sounds/walkingAlong.mp3', 'stream')
   AudioSources["walkingAlong"]:setVolume(.25)
-  love.audio.play(AudioSources["walkingAlong"])
+  -- love.audio.play(AudioSources["walkingAlong"])
+
   -- used for the turn system
   CurrentTurnTaker = 1
   -- set up the color theme

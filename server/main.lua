@@ -214,7 +214,7 @@ function love.load()
   MatchStateIndex = {}
   -- set up CIDTranslator
   CIDTranslator = {}
-  
+
   server:on("connect", function(_, client)
     print('Connection received from client with ID:', client.connectId)
     CIDTranslator[client.connectId] = client
@@ -226,28 +226,50 @@ function love.load()
   -- define everything related to running a match
   DefineMatchFunctions()
 
-
 end
 
 function DefineLobbyFunctions()
 
   ActiveLobbies = {}
 
-  server:on("createLobby", function(lobbyData, client)
-    lobbyData.ID = #ActiveLobbies+1
-    table.insert(ActiveLobbies, lobbyData)
+  local function sendToLobby(lobby, event, data)
+    for _, CID in pairs(lobby.members) do
+      server:sendToPeer(GetPeerByCID(CID), event, data)
+    end
+  end
+
+  server:on("hostLobby", function(lobby, client)
+    lobby.ID = #ActiveLobbies+1
+    table.insert(ActiveLobbies, lobby.ID, lobby)
+    -- add host to members list
+    table.insert(ActiveLobbies[lobby.ID].members, client.connectId)
+    server:sendToPeer(GetPeerByClient(client), "joinLobby", lobby)
   end)
 
-  server:on("joinLobby", function(lobby, client)
-    local host = CIDTranslator[lobby.hostCID]
-    local hostPeer, clientPeer = GetPeerByClient(host), GetPeerByClient(client)
-    server:sendToPeer(hostPeer, "linkToEnemy", client.connectId)
-    server:sendToPeer(clientPeer, "linkToEnemy", host.connectId)
+  server:on("joinLobby", function(lobbyID, client)
+    -- add self to lobby members
+    table.insert(ActiveLobbies[lobbyID].members, client.connectId)
+    -- update the lobby for everyone in it
+    sendToLobby(ActiveLobbies[lobbyID], "updateInsideLobby", ActiveLobbies[lobbyID])
+    -- tell client to join the lobby
+    server:sendToPeer(GetPeerByClient(client), "joinLobby", ActiveLobbies[lobbyID])
   end)
 
   server:on("requestActiveLobbies", function(_, client)
     local peer = GetPeerByClient(client)
     server:sendToPeer(peer, "updateActiveLobbies", ActiveLobbies)
+  end)
+
+  server:on("updateMyPreMatch", function(data, client)
+    -- first, we identify whether the client is host or guest
+    local lobby, preMatchData = unpack(data)
+    if client.connectId == lobby.hostCID then
+      lobby.hostPreMatch = preMatchData
+    else
+      lobby.guestPreMatch = preMatchData
+    end
+    ActiveLobbies[lobby.ID] = lobby
+    sendToLobby(ActiveLobbies[lobby.ID], "updateInsideLobby", ActiveLobbies[lobby.ID])
   end)
 
 end
