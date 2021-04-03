@@ -363,7 +363,7 @@ local function sleeperVictory()
 end
 
 local function sleeperOnMatchStart()
-  ChangePlayerVar('SleeperState', 3)
+  ChangePlayerVar('SleeperState', 1)
   ChangePlayerVar('HasIncarnatePower', false)
 
   -- create Incarnate

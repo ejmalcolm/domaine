@@ -450,6 +450,7 @@ function board.update(dt)
       if GetActionAmount('special') == 0 then goto skipSpecial end
       if ActiveUnit then
         if not ActiveUnit.canSpecial then goto skipSpecial end
+        if not ActiveUnit.specTable.specRef then goto skipSpecial end
       end
       -- SPECIAL
       do
@@ -551,15 +552,6 @@ function board.update(dt)
       local asc = ascendantList[ascIndex]
       CreatePopupDisplay('Ascendant Powers', {'Victory Condition', 'Major', 'Minor', 'Incarnate'}, {asc.victoryText, asc.majorText, asc.minorText, asc.incarnateText})
     end
-  end
-
-  -- * check if out of actions (end turn)
-  -- only check if it's your turn to begin with
-  if IsMyTurn() then
-    -- if (ActionsRemaining.primary == 0) and (ActionsRemaining.secondary == 0) then
-    --   print('Player out of actions')
-    --   client:send("endMyTurn", {})
-    -- end
   end
 
 end

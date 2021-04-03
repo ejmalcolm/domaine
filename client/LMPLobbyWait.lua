@@ -52,7 +52,14 @@ function LobbyWait.update(dt)
       changeScreen(LMPBuildArmy)
     end
 
-    LobbyWaitSuit:Button("Ready Up", LobbyWaitSuit.layout:row(150,20))
+    -- only draw the ready button if army & ascendant is selected
+    if PreMatchData.ArmyList and PreMatchData.AscendantIndex then
+      local readyButton = LobbyWaitSuit:Button("Ready Up", LobbyWaitSuit.layout:row(150,20))
+      if readyButton.hit then
+        PreMatchData.Ready = true
+        client:send("updateMyPreMatch", {InsideLobby, PreMatchData})
+      end
+    end
   end
 
   -- for the "guest" display, we reset to the opposite of where the host is
@@ -101,9 +108,14 @@ function LobbyWait.update(dt)
   end
 
   -- start game button
-  LobbyWaitSuit.layout:reset(centerX-75, 600)
-  LobbyWaitSuit:Button("Go to Unit Placement", LobbyWaitSuit.layout:row(150,20))
-
+  --if InsideLobby.guestPreMatch['Ready'] and InsideLobby.hostPreMatch['Ready'] and LobbyWait.AmHost then
+    LobbyWaitSuit.layout:reset(centerX-75, 600)
+    local UPbutton = LobbyWaitSuit:Button("Go to Unit Placement", LobbyWaitSuit.layout:row(150,20))
+    -- send signal to both clients to advance to unit placement, via server
+    if UPbutton.hit then
+      client:send("goToUnitPlacement", InsideLobby)
+    end
+  --end
 
 end
 

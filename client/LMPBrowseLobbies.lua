@@ -18,12 +18,17 @@ function BrowseLobbies.setUpLobbyClient()
     -- stores what lobby you're in and resets PreMatchData
     PreMatchData = {}
     InsideLobby = lobby
-    -- moves client to LobbyWait
-    changeScreen(LobbyWait)
+    -- moves client to LMPLobbyWait
+    changeScreen(LMPLobbyWait)
   end)
 
   client:on("updateInsideLobby", function(newLobbyData)
     InsideLobby = newLobbyData
+  end)
+
+  client:on("goToUnitPlacement", function(lobby)
+    LMPUnitPlacement.setArmyFromLobby(lobby)
+    changeScreen(LMPUnitPlacement)
   end)
 
   -- ! connection

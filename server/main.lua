@@ -33,13 +33,6 @@ function CreateMasterLanes(matchID)
 	end
 end
 
-function SendToMatch(matchID, event, data_to_send)
-  for _, CID in pairs(MatchStateIndex[matchID]['ClientIndex']) do
-    local peer = GetPeerByCID(CID)
-    server:sendToPeer(peer, event, data_to_send)
-  end
-end
-
 -- ! UTILITY FUNCTIONS
 
 function GetPNumAndMatchID(client)
@@ -190,7 +183,7 @@ function HandleEvent(client, eventName, unitsInvolved, data)
     if specRefs then
       for _, specRef in pairs(specRefs) do
         local owner_peer = GetPeerByCID(matchState.ClientIndex[unit.player])
-        server:sendToPeer(getPeer(owner_peer), "callSpecFunc", {specRef, data})
+        server:sendToPeer(owner_peer, "callSpecFunc", {specRef, data})
       end
     end
   end
@@ -202,8 +195,7 @@ end
 
 function love.load()
   -- server GUI
-  love.graphics.setFont(love.graphics.newFont(10))
-  love.window.setMode(1000,1000)
+  love.window.setMode(1500,1000)
 
   -- set up server
   tickRate = 1/120
@@ -272,9 +264,55 @@ function DefineLobbyFunctions()
     sendToLobby(ActiveLobbies[lobby.ID], "updateInsideLobby", ActiveLobbies[lobby.ID])
   end)
 
+  server:on("goToUnitPlacement", function(lobby, _)
+    sendToLobby(lobby, "goToUnitPlacement", lobby)
+  end)
+
+  server:on("armyListToPRect", function(data, client)
+    local lobby, unitKey, unitName, pRectKey = unpack(data)
+    -- first, remove unit from the armyList
+    local armyList
+    if lobby.hostCID == client.connectId then
+      armyList = lobby.hostPreMatch['ArmyList'] else armyList = lobby.guestPreMatch['ArmyList']
+    end
+    table.remove(armyList, unitKey)
+    -- alternate who's turn it is
+    local newPlacer
+    for _, CID in pairs(lobby.members) do
+      if CID ~= client.connectId then newPlacer = CID end
+    end
+    lobby.placerID = newPlacer
+    -- then, send add to pRect command and update armyLists
+    sendToLobby(lobby, "updateInsideLobby", lobby)
+    sendToLobby(lobby, "updateArmyLists", {})
+    sendToLobby(lobby, "addToPRect", {pRectKey, client.connectId, unitName})
+  end)
+
+  server:on("pRectToArmyList", function(data, client)
+  local lobby, unitKey, pRectKey, unitName = unpack(data)
+  -- first, remove unit from pRect via event
+  sendToLobby(lobby, "removeFromPRect", {pRectKey, client.connectId, unitKey})
+  -- then, add that name back to the owner's armyList
+  local armyList
+  if lobby.hostCID == client.connectId then
+    armyList = lobby.hostPreMatch['ArmyList'] else armyList = lobby.guestPreMatch['ArmyList']
+  end
+  table.insert(armyList, unitName)
+  -- then, update armyLists
+  sendToLobby(lobby, "updateInsideLobby", lobby)
+  sendToLobby(lobby, "updateArmyLists", {})
+  end)
+
 end
 
 function DefineMatchFunctions()
+
+  function SendToMatch(matchID, event, data_to_send)
+    for _, CID in pairs(MatchStateIndex[matchID]['ClientIndex']) do
+      local peer = GetPeerByCID(CID)
+      server:sendToPeer(peer, event, data_to_send)
+    end
+  end
 
   server:on("joinMatch", function(matchID, client)
 
@@ -283,7 +321,7 @@ function DefineMatchFunctions()
       -- if it does, add self to ClientIndex as P2
       MatchStateIndex[matchID]['ClientIndex'][2] = client.connectId
       -- then tell to set up for game
-      server:sendToPeer(getPeer(client), "setUpGame", {2, matchID})
+      server:sendToPeer(GetPeerByClient(client), "setUpGame", {2, matchID})
 
     elseif not MatchStateIndex[matchID] then
       -- if it doesn't, initialize starting values
@@ -293,13 +331,67 @@ function DefineMatchFunctions()
       MatchStateIndex[matchID]['ClientIndex'] = {}
       MatchStateIndex[matchID]['ClientIndex'][1] = client.connectId
       -- ! TESTING FORK: FAKE PLAYER
-      MatchStateIndex[1]['Player2'] = {ActionTable={1,0,1},AscendantIndex=2,HasIncarnatePower=true,HasMajorPower=true,HasMinorPower=true}
+      -- MatchStateIndex[matchID]['Player2'] = {ActionTable={1,0,1},AscendantIndex=2,HasIncarnatePower=true,HasMajorPower=true,HasMinorPower=true}
+      -- ! END TESTING FORK
       -- then tell to set up for game
+      print('setupgame sent')
       server:sendToPeer(GetPeerByClient(client), "setUpGame", {1, matchID})
 
     elseif #(MatchStateIndex[matchID]['ClientIndex']) == 2 then
       print('Match is full!')
       return false
+    end
+
+    end)
+
+  server:on("startMatchFromLobby", function(lobby, client)
+
+    -- first, we generate a new match from the hostCID
+    local matchID = lobby.hostCID
+    assert(not MatchStateIndex[matchID], 'Attempted to start match from lobby, but somehow it already exists.')
+    -- initialize starting values
+    MatchStateIndex[matchID] = {CurrentTurnTaker=1, TurnNumber=0, TimedEventQueue={}, TimedFuncQueue={}, UnitCount=0, DeadUnits={}, ClientIndex={}, Phase='waiting'}
+    -- create empty lanes
+    CreateMasterLanes(matchID)
+    -- add units to lanes based of lobby data
+    for tileRef, tile in pairs(lobby.pRects) do
+      local playerNumber
+      if tileRef:sub(2,2) == '3' then playerNumber = 1 else playerNumber = 2 end
+      for _, unitName in pairs(tile.content) do
+        InitializeUnitOnTile(playerNumber, matchID, unitName, tileRef)
+      end
+    end
+
+    -- ! TESTING FORK: FAKE PLAYER
+    -- MatchStateIndex[matchID]['Player2'] = {ActionTable={1,0,1},AscendantIndex=2,HasIncarnatePower=true,HasMajorPower=true,HasMinorPower=true}
+    -- ! END TESTING FORK
+
+    -- remove lobby from ActiveLobbies
+    ActiveLobbies[lobby.ID] = nil
+
+    -- convert lobby prematchdata to match prematchdata
+    for _, preMatch in pairs({lobby.hostPreMatch, lobby.guestPreMatch}) do
+      preMatch.ArmyList = nil
+      preMatch.CurrentArmyCost = nil
+      preMatch.ActionTable = {1, 1, 1}
+      preMatch.HasMajorPower = true
+      preMatch.HasMinorPower = true
+      preMatch.HasIncarnatePower = true
+    end
+
+    -- * host
+    MatchStateIndex[matchID]['Player1'] = lobby.hostPreMatch
+    MatchStateIndex[matchID]['ClientIndex'][1] = client.connectId
+    server:sendToPeer(GetPeerByCID(lobby.hostCID), "setUpGame", {1, matchID})
+    
+    -- * guest(s?)
+    -- tell guest to join as p2
+    for _, CID in pairs(lobby.members) do
+      if CID ~= lobby.hostCID then
+        MatchStateIndex[matchID]['Player2'] = lobby.guestPreMatch
+        MatchStateIndex[matchID]['ClientIndex'][2] = CID
+        server:sendToPeer(GetPeerByCID(CID), "setUpGame", {2, matchID})
+      end
     end
 
     end)
@@ -337,6 +429,25 @@ function DefineMatchFunctions()
     -- send out the updated board
     SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
   end)
+
+  function InitializeUnitOnTile(pNum, matchID, unitName, tileRef)
+
+    -- * tileRef is in form 'rA'
+    -- * we need to convert it before setting the units stored reference
+    local laneCode, tileCode = tileRef:sub(1,1), tileRef:sub(2,2)
+    local spawnTile = MatchStateIndex[matchID].MasterLanes[laneCode][tonumber(tileCode)]
+    MatchStateIndex[matchID].UnitCount = MatchStateIndex[matchID].UnitCount + 1
+
+    -- calculate the statistics of the unit by referencing unitList
+    local unitRef = UnitList[unitName]
+    local cst, atk, hp, cM, cA, cS, special = unitRef[1], unitRef[2], unitRef[3], unitRef.canMove, unitRef.canAttack, unitRef.canSpecial, unitRef.special
+    local unit = {uid=unitName..MatchStateIndex[matchID].UnitCount,name=unitName,player=pNum,cost=cst,
+                  attack=atk,health=hp,tile=tileRef,canMove=cM,canAttack=cA,canSpecial=cS,
+                  specTable=special}
+    table.insert(spawnTile.content, unit)
+
+    -- we don't send out an updated board, as we need to wait for the match to start first
+  end
 
   server:on("addUnitToTile", function(data, client)
     -- add the unit
@@ -394,7 +505,7 @@ function DefineMatchFunctions()
     if doNotCheckRange then goto skipRange end
     -- check range
     if DistanceBetweenTiles(attTile, defTile) ~= 0 then
-      server:sendToPeer(getPeer(client), "createAlert", {'Target out of range', 5})
+      server:sendToPeer(GetPeerByClient(client), "createAlert", {'Target out of range', 5})
       return false
     end
     ::skipRange::
@@ -538,7 +649,7 @@ function DefineMatchFunctions()
       local specTable = unit.specTable
       local tags = specTable.tags
       if tags.cannotBeAttacked == true then
-        server:sendToPeer(getPeer(client), "createAlert", {'Target cannot be attacked', 3})
+        server:sendToPeer(GetPeerByClient(client), "createAlert", {'Target cannot be attacked', 3})
         return false
       end
     end
@@ -548,7 +659,7 @@ function DefineMatchFunctions()
       local distance = conditions.distanceBetweenIs
       local t1, t2 = TileRefToTile(client, unit.tile), TileRefToTile(client, origin.tile)
       if DistanceBetweenTiles(t1, t2) ~= distance then
-        server:sendToPeer(getPeer(client), "createAlert", {'Target out of range', 3})
+        server:sendToPeer(GetPeerByClient(client), "createAlert", {'Target out of range', 3})
         return false
       end
     end
@@ -557,18 +668,18 @@ function DefineMatchFunctions()
     if conditions.horizontallyAdjacent ~= nil then
       local t1, t2 = TileRefToTile(client, unit.tile), TileRefToTile(client, origin.tile)
       -- check if in same tile
-      if t1.t ~= t2.t then server:sendToPeer(getPeer(client), "createAlert", {'Not in adjacent tiles.', 3}) return false end
+      if t1.t ~= t2.t then server:sendToPeer(GetPeerByClient(client), "createAlert", {'Not in adjacent tiles.', 3}) return false end
       -- check if in the same lane
-      if not AdjacentLanes(t1.l, t2.l) then server:sendToPeer(getPeer(client), "createAlert", {'Not in adjacent tiles.', 3}) return false end
+      if not AdjacentLanes(t1.l, t2.l) then server:sendToPeer(GetPeerByClient(client), "createAlert", {'Not in adjacent tiles.', 3}) return false end
     end
 
     -- ! self-targeting
     if conditions.canTargetSelf ~= nil then
-      if unit.uid == origin.uid then server:sendToPeer(getPeer(client), "createAlert", {'Cannot target self.', 3}) return false end
+      if unit.uid == origin.uid then server:sendToPeer(GetPeerByClient(client), "createAlert", {'Cannot target self.', 3}) return false end
     end
 
     -- if all is well, we echo back a unique target event
-    server:sendToPeer(getPeer(client), "triggerEvent", {unit.uid..'TargetSucceed', {}})
+    server:sendToPeer(GetPeerByClient(client), "triggerEvent", {unit.uid..'TargetSucceed', {}})
 
     -- before ending, we call the unitTargeted event
     HandleEvent(client, "unitTargeted", {unit}, {unit, origin, data2})
@@ -578,7 +689,7 @@ function DefineMatchFunctions()
 
   server:on("useAction", function (data, client)
     local actionType, actionUser, reason = unpack(data)
-    server:sendToPeer(getPeer(client), "actionUsed", actionType)
+    server:sendToPeer(GetPeerByClient(client), "actionUsed", actionType)
   end)
 
   function AdvanceTurnTimer(matchID)
@@ -644,6 +755,8 @@ function DefineMatchFunctions()
 
     -- check if victory condition is achieved
     for pNum, _ in pairs(MatchStateIndex[matchID].ClientIndex) do
+      print(pNum)
+      print(inspect(MatchStateIndex))
       local ascIndex = MatchStateIndex[matchID]['Player'..pNum]['AscendantIndex']
       local asc = AscendantVictories[ascIndex]
       if asc.victoryFunc(pNum, MatchStateIndex[matchID]) then
@@ -653,14 +766,14 @@ function DefineMatchFunctions()
         for _, playerCID in pairs(matchState.ClientIndex) do
           if playerCID ~= winnerCID then
             -- ! TESTING FORK: NO LOSER (IF FAKE PLAYER)
-            print('TESTING FORK: No message to loser')
-            -- ! loser = getPeer(Players[player])
+            -- print('TESTING FORK: No message to loser')
+            loser = GetPeerByCID(playerCID)
           end
         end
         server:sendToPeer(winnerPeer, "youWin", {})
         -- ! TESTING FORK: NO LOSER (FAKE PLAYER)
-        print('TESTING FORK: No message to loser.')
-        -- ! server:sendToPeer(loser, "youLose", {})
+        -- print('TESTING FORK: No message to loser.')
+        server:sendToPeer(loser, "youLose", {})
       end
     end
     -- increment the turn timer and activate any queued events
@@ -680,7 +793,7 @@ function DefineMatchFunctions()
   server:on("updatePlayerVar", function(data, client)
     local field, value = unpack(data)
     local pNum, matchID = GetPNumAndMatchID(client)
-    local PlayerState = MatchStateIndex[pNum]['Player'..pNum]
+    local PlayerState = MatchStateIndex[matchID]['Player'..pNum]
     PlayerState[field] = value
     end)
 
@@ -712,6 +825,7 @@ function love.update(dt)
   for matchID, matchState in pairs(MatchStateIndex) do
     if matchState['Player1'] and matchState['Player2'] and matchState['Phase'] == 'waiting' then
       SendToMatch(matchID, "startMatch", matchState)
+      SendToMatch(matchID, "updateLanes", MatchStateIndex[matchID].MasterLanes)
       matchState.Phase = 'inProgress'
       AdvanceTurnTimer(matchID)
     end
@@ -721,9 +835,23 @@ function love.update(dt)
 end
 
 function love.draw()
-  love.graphics.setBackgroundColor(1,1,1)
-  love.graphics.setColor(0,0,0)
-  if MatchStateIndex then
-    love.graphics.print(inspect(MatchStateIndex), 0, 0)
+  love.graphics.setFont(love.graphics.newFont(12))
+  love.graphics.setBackgroundColor(0,0,0)
+  love.graphics.setColor(.7,.7,.7)
+
+  local x, y = love.graphics.getDimensions()
+  local centerX, centerY = x/2, y/2
+  
+  love.graphics.print('Lobby Viewer', centerX-40, 0)
+  love.graphics.print('Displayed below are all currently active lobbies and their contents.', centerX-200, 20)
+  love.graphics.print('Press --> to browse active games.', centerX-100, 40)
+
+  for k, lobby in pairs(ActiveLobbies) do
+    local xC, yC = ((k-1)*250)+5, 50
+    
+    love.graphics.print('Lobby ID: '..lobby.ID, xC, yC)
+    love.graphics.print('There are currently #'..tostring(#lobby.members)..' players connected.', xC, yC+15)
+    love.graphics.print('This is a '..lobby.gameType.. ' match, hosted by '..lobby.hostCID, xC, yC+30)
+
   end
 end

@@ -318,6 +318,7 @@ The Sleeper, Dreaming cannot move or attack.]],
 The Sleeper, Dreaming cannot move or attack.]],
            specRef=nil,
            tags= {} } }
+unitList["SLEEPER, DREAMING"]["special"]["tags"]['unitDeathInTile|sleeperDreamingPassive'] = true
 
 unitList["SLEEPER, DISTURBED"] = {0, 0, 10,
 canMove = false, canAttack = false, canSpecial = false,
@@ -328,6 +329,7 @@ The Sleeper, Disturbed cannot move or attack.]],
 The Sleeper, Disturbed cannot move or attack.]],
           specRef=nil,
           tags= {} } }
+unitList["SLEEPER, DISTURBED"]["special"]["tags"]['unitDeathInTile|sleeperDisturbedPassive'] = true
 
 unitList["SLEEPER, AWOKEN"] = {0, 10, 10,
 canMove = true, canAttack = true, canSpecial = true,

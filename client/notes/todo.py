@@ -1,16 +1,37 @@
+#*MINIMUM VIABLE GAME:
 
-# * work on direct connection
-  # we have a nice lobby UI setup
-  # change the server-side infrastructure to have a "game management" section
-  # channel mangament based off the host lobby screen
+# ! CRASHES ! #
+  # the fool will crash the game if it tries to copy a unit without a specRef
+  # if the client lags, the same client instance can connect many times to one lobby
 
+# ! DOES NOT FUNCTION ! #
+  # the Sleeper does not evolve if a unit dies in a way other than being attacked
+  # the savant victory condition does not function
+  # the hunter does not work
+ 
 
-# !!! THINGS THAT ACTUALLY DON'T WORK !!! #
+# ! DOES NOT FUNCTION AS INTENDED ! #
+  # units with long names, when selected, display under the control bar
   # ascendant incarnates do not cause game loss on death
-  # the hunter doesn't work at all
-  # the fool will crash the game if it tries to copy people without an activated special
-  # the new control bar doesn't have canMove/canAttack/canSpecial implemented
-  # the parallel instantly wins the game because all units have the same stats
+  # units that can't move can take the Imperator's bridge
+  # you can delay spawning the sleeper or selecting your victory turn as the savant
+  # the berserker's second attack target "sticks" across a turn ending
+
+# ! FUNCTIONS AS INTENDED WITH UNEXPECTED RESULTS # !
+  # the parallel instantly wins the game, as all units have the same stats
+
+# ! DIFFICULT TO UNDERSTAND ! #
+  # there's no confirmation of many abilities, particularly targeted/time-delayed ones, worked
+  # there's no indication of who's turn it is
+  # there's no indication if you're actively searching for a target once the alert times out
+  # there's no indication of Madness or Warden status effects
+
+
+
+
+
+
+
 
 
 # ! VERSION 0.5: FIX ALERTS
@@ -19,10 +40,6 @@
   # make some alerts go to both players
   # have a way to view old alerts
 
-# ! VERSION 0.6: UNIT PLACEMENT
-  # * add to unitPlacement:
-  # something that explains what is happening
-  # * change unitPlacement to be multiplayer, players take turns at it
 
 # ! VERSION 0.7: GAME
 

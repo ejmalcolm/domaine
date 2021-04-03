@@ -91,7 +91,7 @@ function buildArmy.update(dt)
   suit.Button('Army Complete', suit.layout:row(150,20))
   if suit.isHit('Army Complete') then
       PreMatchData['CurrentArmyCost'] = currentArmyCost
-      changeScreen(LobbyWait)
+      changeScreen(LMPLobbyWait)
   end
 
 end

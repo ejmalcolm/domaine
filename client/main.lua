@@ -1,18 +1,14 @@
 -- * screens
 menu = require("menu")
 board = require("board")
-buildArmy = require("buildArmy")
-unitPlacement = require("unitPlacement")
-connectScreen = require("ConnectScreen")
-chooseAscendant = require("chooseAscendant")
 victoryScreen = require("victoryScreen")
 defeatScreen = require("defeatScreen")
-WaitingScreen = require("WaitingScreen")
-
-BrowseLobbies = require("BrowseLobbies")
-LobbyWait = require("LobbyWait")
+-- lobby multiplayer screens
+LMPBrowseLobbies = require("LMPBrowseLobbies")
+LMPLobbyWait = require("LMPLobbyWait")
 LMPChooseAscendant = require("LMPChooseAscendant")
 LMPBuildArmy = require("LMPBuildArmy")
+LMPUnitPlacement = require("LMPUnitPlacement")
 
 -- * references
 unitList = require("references/unitList")
@@ -283,6 +279,108 @@ function changeScreen(screen)
   currentScreen = screen
 end
 
+-- * used to define all client events used to join and run a match
+function DefineMatchEvents()
+
+  client:on("setUpGame", function(data)
+    -- store playerNumber and matchID
+    playerNumber, matchID = unpack(data)
+    print('Client player number: '..playerNumber)
+    print('Client assigned to match ID: '..matchID)
+    -- access pregame data from lobby
+    PreMatchData['HasMajorPower'] = true
+    PreMatchData['HasMinorPower'] = true
+    PreMatchData['HasIncarnatePower'] = true
+    PreMatchData['ActionTable'] = {1, 1, 1}
+    client:send("transferPreMatchData", {matchID, PreMatchData})
+  end)
+
+  -- * launches the actual match, switches to board
+  client:on("startMatch", function(data)
+    -- initialize the MatchState
+    MatchState = data
+
+    -- set screen to board once everything's ready
+    changeScreen(board)
+
+    -- call any onMatchStart functions
+    local ascIndex = GetPlayerVar('AscendantIndex')
+    local asc = ascendantList[ascIndex]
+    if asc.onMatchStartFunc then asc.onMatchStartFunc() end
+  end)
+
+  -- ! SERVER-TO-CLIENT COMMUNICATION
+
+  -- * allows the server to create client-side alerts
+  client:on("createAlert", function(data)
+    local alertText, duration = data[1], data[2]
+    CreateAlert(alertText, duration)
+  end)
+
+  -- * allows the server to trigger events
+  client:on("triggerEvent", function(data)
+    local event, triggerArgs = unpack(data)
+    print('Event triggered by server:', event)
+    TriggerEvent(event, triggerArgs)
+  end)
+
+  -- * used to update the MatchState table
+  client:on("updateVar", function(data)
+    local scope, field, value = unpack(data)
+    print('Updated MatchState:', scope, field, value)
+    if scope == 'global' then
+      MatchState[field] = value
+    elseif scope == 'player' then
+      MatchState['Player'..playerNumber] = value
+    end
+  end)
+
+  client:on("youWin", function(data)
+    CreateAlert('You win!!!!', 3)
+    CreateAlert('Unfortunately, you have to close the game now!', 7)
+    CreateAlert('WORKING ON IT I PROMISE', 20)
+    changeScreen(victoryScreen)
+  end)
+
+  client:on("youLose", function(data)
+    CreateAlert('You lose :( :( :(', 3)
+    CreateAlert('Unfortunately, you have to close the game now!', 7)
+    CreateAlert('WORKING ON IT I PROMISE', 20)
+    changeScreen(defeatScreen)
+  end)
+
+  client:on("callSpecFunc", function(data)
+    local specRef, args = unpack(data)
+    args = args or {}
+    print('Special called by server:', specRef)
+    unitSpecs[specRef](unpack(args))
+  end)
+
+  -- ! BOARD FUNCTIONS
+
+  -- * when called, the client updates its copy of the Lanes to match the server's
+  client:on("updateLanes", function(UpdatedLanes)
+    board.lanes = UpdatedLanes
+  end)
+
+  -- ! TURN SYSTEM
+
+  -- -- * used to manage turn timer and amount of actions
+  -- client:on("actionUsed", function(actionType)
+  --   print(actionType.. ' action used.')
+  --   ActionsRemaining[actionType] = ActionsRemaining[actionType] - 1
+  -- end)
+
+  -- * used to set who's turn it is
+  client:on("setPlayerTurn", function(playerN)
+    print('Player '..CurrentTurnTaker..'\'s turn ended.')
+    print('It is now Player'..playerN..'\'s turn')
+    -- reset available actions for both players
+    ChangePlayerVar('ActionTable', {1, 1, 1})
+    CurrentTurnTaker = playerN
+  end)
+end
+
 function connectToHost(ip)
   -- create the client
   tickRate = 1/60
@@ -304,23 +402,21 @@ function connectToHost(ip)
     print('Client player number: '..playerNumber)
     print('Client assigned to match ID: '..matchID)
     -- send over the pregame data
-    PreMatchData['HasMajorPower'] = true
-    PreMatchData['HasMinorPower'] = true
-    PreMatchData['HasIncarnatePower'] = true
-    PreMatchData['ActionTable'] = {1, 1, 1}
-    client:send("transferPreMatchData", {matchID, PreMatchData})
-    -- send to waiting screen
-    changeScreen(WaitingScreen)
+    -- PreMatchData['HasMajorPower'] = true
+    -- PreMatchData['HasMinorPower'] = true
+    -- PreMatchData['HasIncarnatePower'] = true
+    -- PreMatchData['ActionTable'] = {1, 1, 1}
+    -- client:send("transferPreMatchData", {matchID, PreMatchData})
   end)
 
   -- * launches the actual match, switches to board
   client:on("startMatch", function(data)
     -- one at a time, add each unit from unitPlacement into the matching starting Tile
-    for _, tile in pairs({'r', 'y', 'b'}) do
-      for _, unit in pairs(unitPlacement.pRects[tile].content) do
-          client:send("createUnitOnTile", {unit, tile..'A'})
-      end
-    end
+    -- for _, tile in pairs({'r', 'y', 'b'}) do
+    --   for _, unit in pairs(unitPlacement.pRects[tile].content) do
+    --       client:send("createUnitOnTile", {unit, tile..'A'})
+    --   end
+    -- end
 
     -- initialize the MatchState
     MatchState = data

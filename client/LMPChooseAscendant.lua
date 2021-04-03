@@ -79,7 +79,7 @@ function chooseAscendant.update(dt)
   suit.layout:padding(5)
   if PreMatchData['AscendantIndex'] then
     if suit.Button('Finalize Selection', suit.layout:row(150,20)).hit then
-      changeScreen(LobbyWait)
+      changeScreen(LMPLobbyWait)
     end
   end
 

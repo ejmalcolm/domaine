@@ -13,17 +13,14 @@ function menu.update(dt)
   -- buttons
   local browseLobbyButton = suit.Button("Browse Match Lobbies", suit.layout:row(300, 30))
   if browseLobbyButton.hit then
-    BrowseLobbies.load()
-    changeScreen(BrowseLobbies)
-  end
-
-  local directButton = suit.Button("Connect by IP", suit.layout:row(300,30))
-  if directButton.hit then
-    chooseAscendant.load()
-    changeScreen(chooseAscendant)
+    LMPBrowseLobbies.load()
+    changeScreen(LMPBrowseLobbies)
   end
 
   local sandboxButton = suit.Button("Sandbox", suit.layout:row(300,30))
+  if sandboxButton.hit then
+    changeScreen(LMPUnitPlacement)
+  end
 
   local wikiButton = suit.Button("Domainopedia", suit.layout:row(300, 30))
 
